@@ -109,7 +109,7 @@ def delete_expense_db(expense_id):
 
 init_db()
 
-# 幣別對應表與台銀行幣代碼
+# 幣別對應表
 CURRENCY_MAP = {
     "NT 新台幣": {"code": "TWD", "fallback": 1.0},
     "US 美元": {"code": "USD", "fallback": 32.62},
@@ -124,7 +124,7 @@ CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", 
 
 MACARON_COLORS = ['#ffb7c5', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#e0bbe4', '#fec8d8']
 
-# ✨ 專屬：直接抓取台灣銀行 (Bank of Taiwan) 牌告匯率
+# ⚡ 優化版匯率抓取：縮短 timeout 防止網頁卡死
 @st.cache_data(ttl=3600)
 def fetch_bot_rate(currency_code, target_date):
     if currency_code == "TWD":
@@ -133,32 +133,45 @@ def fetch_bot_rate(currency_code, target_date):
     today = date.today()
     check_date = min(target_date, today)
     
-    # 嘗試向前尋找最近的營業日 (最多遞補 5 天以避開連假)
-    for i in range(5):
+    headers = {"User-Agent": "Mozilla/5.0"}
+    
+    # 1. 嘗試台銀歷史 CSV (縮短至 1.5 秒超時)
+    for i in range(3):
         curr_date = check_date - timedelta(days=i)
         date_str = curr_date.strftime("%Y%m%d")
         url = f"https://rate.bot.com.tw/xrt/flcsv/0/day/{date_str}"
         try:
-            res = requests.get(url, timeout=3)
+            res = requests.get(url, headers=headers, timeout=1.5)
             if res.status_code == 200 and "牌告匯率" in res.text:
                 lines = res.text.splitlines()
                 for line in lines:
                     parts = line.split(',')
                     if len(parts) > 12 and currency_code in parts[0]:
-                        # 優先選取「本行即時賣出」或「本行現金賣出」
-                        spot_sell = parts[12].strip()  # 即時賣出匯率
-                        cash_sell = parts[13].strip()  # 現金賣出匯率
-                        
+                        spot_sell = parts[12].strip()
+                        cash_sell = parts[13].strip()
                         rate_val = spot_sell if spot_sell and spot_sell != '-' else cash_sell
                         if rate_val and rate_val != '-':
                             return round(float(rate_val), 4)
         except Exception:
             pass
-            
-    # 若台銀 CSV 無資料，呼叫備用 API 或預設值
+
+    # 2. 備用：Frankfurter 歷史 API
+    if target_date <= today:
+        try:
+            d_str = target_date.strftime("%Y-%m-%d")
+            url = f"https://api.frankfurter.dev/v1/{d_str}?from={currency_code}&to=TWD"
+            res = requests.get(url, timeout=1.5)
+            if res.status_code == 200:
+                data = res.json()
+                if "rates" in data and "TWD" in data["rates"]:
+                    return round(float(data["rates"]["TWD"]), 4)
+        except Exception:
+            pass
+
+    # 3. 備用：即時 API
     try:
         fallback_url = f"https://open.er-api.com/v6/latest/{currency_code}"
-        res = requests.get(fallback_url, timeout=3)
+        res = requests.get(fallback_url, timeout=1.5)
         if res.status_code == 200:
             data = res.json()
             if "rates" in data and "TWD" in data["rates"]:
@@ -525,7 +538,7 @@ with tab_input:
             elif input_amount is None or input_amount <= 0:
                 st.warning("⚠️ 請輸入有效的數字金額喔！")
             else:
-                with st.spinner("🌐 正在獲取台灣銀行對應日期的牌告匯率..."):
+                with st.spinner("🌐 正在獲取對應日期的牌告匯率..."):
                     rate, is_live = fetch_rate_by_date(currency, input_date)
                 
                 date_str = input_date.strftime("%Y-%m-%d")
