@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, date, timedelta
 import requests
-from bs4 import BeautifulSoup
 import sqlite3
 import hashlib
 import time
@@ -111,15 +110,15 @@ def delete_expense_db(expense_id):
 
 init_db()
 
-# 幣別與代碼映射
+# 幣別與對應基本數值防錯基準
 CURRENCY_MAP = {
-    "NT 新台幣": {"code": "TWD"},
-    "US 美元": {"code": "USD"},
-    "¥ 日圓": {"code": "JPY"},
-    "¥ 人民幣": {"code": "CNY"},
-    "₩ 韓元": {"code": "KRW"},
-    "€ 歐元": {"code": "EUR"},
-    "£ 英鎊": {"code": "GBP"}
+    "NT 新台幣": {"code": "TWD", "fallback": 1.0},
+    "US 美元": {"code": "USD", "fallback": 32.50},
+    "¥ 日圓": {"code": "JPY", "fallback": 0.2100},
+    "¥ 人民幣": {"code": "CNY", "fallback": 4.50},
+    "₩ 韓元": {"code": "KRW", "fallback": 0.0230},
+    "€ 歐元": {"code": "EUR", "fallback": 35.50},
+    "£ 英鎊": {"code": "GBP", "fallback": 42.00}
 }
 
 # 📊 2年 ~ 10年比率網歷史數據庫
@@ -159,71 +158,43 @@ CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", 
 
 MACARON_COLORS = ['#ffb7c5', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#e0bbe4', '#fec8d8']
 
-# ⚡ 現抓台灣銀行「當下那一秒」最新實時牌告 HTML
-def fetch_bot_realtime_rate(code):
-    url = "https://rate.bot.com.tw/xrt?Lang=zh-TW"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-    try:
-        res = requests.get(url, headers=headers, timeout=2.5)
-        if res.status_code == 200:
-            soup = BeautifulSoup(res.text, 'html.parser')
-            rows = soup.find_all('tr')
-            for row in rows:
-                code_div = row.find('div', class_='visible-phone')
-                if code_div and code in code_div.text:
-                    rates = row.find_all('td', class_='rate-content-sight')
-                    cash_rates = row.find_all('td', class_='rate-content-cash')
-                    
-                    spot_sell = rates[1].text.strip() if len(rates) > 1 else "-"
-                    cash_sell = cash_rates[1].text.strip() if len(cash_rates) > 1 else "-"
-                    
-                    target = spot_sell if spot_sell != "-" else cash_sell
-                    if target != "-":
-                        return round(float(target), 4)
-    except Exception:
-        pass
-    return None
-
-# 🎯 三層精準匯率檢索引擎
+# ⚡ 精準即時匯率獲取（附帶嚴格數值範圍防錯機制）
 def fetch_rate_by_date(currency_label, target_date):
     if currency_label == "NT 新台幣":
         return 1.0
         
     code = CURRENCY_MAP[currency_label]["code"]
+    fallback = CURRENCY_MAP[currency_label]["fallback"]
+    
     today = date.today()
     check_date = min(target_date, today)
     days_diff = (today - check_date).days
     target_year = check_date.year
     target_month_str = check_date.strftime("%Y-%m")
 
-    # 1. 當下此時此刻 (今日) ➔ 直接爬取台銀即時牌告網頁
-    if check_date == today:
-        realtime_val = fetch_bot_realtime_rate(code)
-        if realtime_val:
-            return realtime_val
-
-    # 2. 一年以內歷史 ➔ 台灣銀行歷史牌告 CSV
+    # 1. 當下實時 / 1年以內 ➔ 優先調用精準國際外匯 API
     if days_diff <= 365:
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        for i in range(5):
-            curr_d = check_date - timedelta(days=i)
-            url = f"https://rate.bot.com.tw/xrt/flcsv/0/day/{curr_d.strftime('%Y%m%d')}"
-            try:
-                res = requests.get(url, headers=headers, timeout=1.8)
-                if res.status_code == 200 and ("牌告匯率" in res.text or "幣別" in res.text):
-                    lines = res.text.splitlines()
-                    for line in lines:
-                        parts = line.split(',')
-                        if len(parts) > 13 and parts[0].strip() == code:
-                            spot_sell = parts[12].strip()
-                            cash_sell = parts[13].strip()
-                            rate_val_str = spot_sell if spot_sell and spot_sell != '-' else cash_sell
-                            if rate_val_str and rate_val_str != '-':
-                                return round(float(rate_val_str), 4)
-            except Exception:
-                pass
+        try:
+            url = f"https://open.er-api.com/v6/latest/{code}"
+            res = requests.get(url, timeout=2.0)
+            if res.status_code == 200:
+                data = res.json()
+                if "rates" in data and "TWD" in data["rates"]:
+                    val = float(data["rates"]["TWD"])
+                    # 嚴格校驗：防範數據混淆
+                    if code in ["USD", "EUR", "GBP"] and val < 10:
+                        return fallback
+                    if code == "JPY" and val > 1.0:
+                        return fallback
+                    if code == "KRW" and val > 0.2:
+                        return fallback
+                    if code == "CNY" and (val < 2 or val > 10):
+                        return fallback
+                    return round(val, 4)
+        except Exception:
+            pass
 
-    # 3. 2~10 年 ➔ 比率網歷史外匯數據
+    # 2. 2~10 年 ➔ 比率網歷史外匯數據
     if target_year in RATESVIEWER_10Y_DB:
         year_db = RATESVIEWER_10Y_DB[target_year]
         if "monthly" in year_db and target_month_str in year_db["monthly"]:
@@ -233,22 +204,11 @@ def fetch_rate_by_date(currency_label, target_date):
         if code in year_db:
             return year_db[code]
 
-    # 4. 10 年以上 ➔ 中央銀行外匯長期歷史資訊庫
+    # 3. 10 年以上 ➔ 中央銀行外匯長期歷史資訊庫
     if target_year in CBC_LONGTERM_DB and code in CBC_LONGTERM_DB[target_year]:
         return CBC_LONGTERM_DB[target_year][code]
 
-    # API 備援
-    try:
-        url = f"https://open.er-api.com/v6/latest/{code}"
-        res = requests.get(url, timeout=1.5)
-        if res.status_code == 200:
-            data = res.json()
-            if "rates" in data and "TWD" in data["rates"]:
-                return round(float(data["rates"]["TWD"]), 4)
-    except Exception:
-        pass
-
-    return 1.0
+    return fallback
 
 # 3. 馬卡龍風格 CSS 樣式
 st.markdown("""
@@ -662,9 +622,9 @@ with tab_input:
         try:
             preview_amt = float(input_amount_str) if input_amount_str.strip() else 0
             calc_twd = int(round(preview_amt * current_live_rate))
-            st.info(f"💡 台銀即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
+            st.info(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
         except ValueError:
-            st.caption(f"💡 台銀即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD**")
+            st.caption(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD**")
 
         submit_btn = st.form_submit_button("💖 儲存這筆紀錄", use_container_width=True)
 
