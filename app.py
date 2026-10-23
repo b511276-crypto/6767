@@ -336,6 +336,11 @@ st.markdown("""
         box-shadow: 0 6px 16px rgba(201, 67, 83, 0.35) !important;
     }
 
+    /* 🙈 完全隱藏用來做背景資料傳輸的第二個輸入框 */
+    .hidden-input-field {
+        display: none !important;
+    }
+
     #MainMenu {visibility: hidden;} footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
@@ -646,7 +651,7 @@ else:
 # 12. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：逐筆輸入與明細 (JavaScript 超高敏即時計算元件) ---
+# --- 分頁 1：逐筆輸入與明細 (完美隱藏多餘輸入框) ---
 with tab_input:
     st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
@@ -677,7 +682,7 @@ with tab_input:
     
     st.markdown("**花費金額**")
 
-    # 🚀 前端超感度 JavaScript 即時連動輸入元件
+    # 🚀 前端超感度 JavaScript 即時連動輸入組件
     html_input_component = f"""
     <div style="font-family: 'Noto Sans TC', sans-serif;">
         <input type="text" id="custom_amt_input" placeholder="請輸入金額..." 
@@ -698,24 +703,24 @@ with tab_input:
             }}
             document.getElementById('calc_preview').innerText = 'NT$ ' + result.toLocaleString();
             
-            // 將數字同步至同層 window
-            window.parent.postMessage({{
-                type: 'streamlit:setComponentValue',
-                value: cleanVal
-            }}, '*');
+            // 將數字即時同步給父視窗的隱藏元素
+            var hiddenInput = window.parent.document.querySelector('div[data-testid="stTextInput"]:has(input[aria-label="hidden_amt_receiver"]) input');
+            if (hiddenInput) {{
+                hiddenInput.value = cleanVal;
+                hiddenInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            }}
         }}
     </script>
     """
     
-    # 渲染 JS 輸入組件，並將值傳回 Python
-    realtime_val = components.html(html_input_component, height=125)
+    components.html(html_input_component, height=115)
 
-    # 隱藏式背後欄位，用於點擊儲存時抓取數字
-    input_amount_str = st.text_input("即時數據同步槽", placeholder="請輸入金額...", key=f"amt_str_{reset_key}", label_visibility="collapsed")
+    # 🙈 使用 CSS 將背景數據同步槽完全隱藏起來
+    st.markdown('<div class="hidden-input-field">', unsafe_allow_html=True)
+    input_amount_str = st.text_input("hidden_amt_receiver", placeholder="請輸入金額...", key=f"amt_str_{reset_key}", label_visibility="collapsed")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
     if st.button("💖 儲存這筆紀錄", use_container_width=True, type="primary", key=f"submit_{reset_key}"):
-        # 自動優先取用 JS 直接填入或文字框中的金額
         final_str = input_amount_str.strip()
         try:
             input_amount = float(final_str) if final_str else 0.0
@@ -727,7 +732,7 @@ with tab_input:
         elif input_category is None:
             st.warning("⚠️ 請選擇消費分類喔！")
         elif input_amount <= 0:
-            st.warning("⚠️ 請在上方的「花費金額」欄位輸入有效金額，並按 Enter 或點擊下方按鈕儲存喔！")
+            st.warning("⚠️ 請在上方的「花費金額」欄位輸入有效金額喔！")
         else:
             date_str = input_date.strftime("%Y-%m-%d")
             year_num = input_date.year
