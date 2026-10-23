@@ -137,7 +137,7 @@ def fetch_realtime_rate(currency_label):
         pass
     return CURRENCY_MAP[currency_label]["fallback"], False
 
-# 3. 馬卡龍風格 CSS 樣式 (優化好看字型)
+# 3. 馬卡龍風格 CSS 樣式
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Sans+TC:wght@500;700;900&display=swap');
@@ -301,11 +301,10 @@ def edit_expense_dialog(rec, rec_id, prefix):
             st.toast("🗑️ 已成功刪除該筆資料！", icon="✨")
             st.rerun()
 
-# 6. 通用圖表繪製函式（修復 X 軸時間顯示為中文月份）
+# 6. 通用圖表繪製函式（刻度以 10 的倍數為單位）
 def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=False):
     chart_df = df_data.copy()
     
-    # 若為月份趨勢，將 X 軸格式轉換為純文字「10月」或「11月」，防止被繪圖庫當作時間戳記
     if is_month_x and x_col == 'month':
         chart_df['month_label'] = chart_df['month'].apply(lambda x: f"{int(x.split('-')[1])}月" if '-' in str(x) else str(x))
         x_target = 'month_label'
@@ -327,9 +326,11 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
         fig.update_traces(line=dict(width=3), marker=dict(size=8))
         fig.update_layout(xaxis_title="", yaxis_title="金額 (NT$)")
 
-    # 強制 X 軸為分類模式，避免誤排或產生時間特有的毫秒刻度
     fig.update_xaxes(type='category')
     
+    # ✨ 強制設定 Y 軸刻度間隔以 10 的倍數（dtick=10）為單位顯示
+    fig.update_yaxes(dtick=10)
+
     fig.update_layout(
         title="",
         margin=dict(t=10, b=20, l=20, r=20),
@@ -519,7 +520,7 @@ with tab_input:
                 st.rerun()
 
     st.markdown("---")
-    st.subheader("📜 最近的記帳明細 (最新 10 筆)")
+    st.subheader("📜 最近的記帳明細")
     if not df.empty:
         filter_col1, filter_col2 = st.columns(2)
         with filter_col1:
@@ -564,7 +565,6 @@ with tab_input:
 # --- 分頁 2：月度累積與趨勢 ---
 with tab_month:
     if not df.empty:
-        # 計算當前年月作為預設值
         now_month_str = datetime.now().strftime("%Y-%m")
         all_months = sorted(df['month'].unique(), reverse=True)
         if now_month_str not in all_months:
@@ -631,7 +631,6 @@ with tab_month:
 # --- 分頁 3：年度累積與趨勢 ---
 with tab_year:
     if not df.empty:
-        # 計算當前年份作為預設值
         now_year_num = datetime.now().year
         all_years = sorted(df['year'].unique(), reverse=True)
         if now_year_num not in all_years:
@@ -645,10 +644,8 @@ with tab_year:
             y_view_mode = st.selectbox("🔍 選擇分析維度：", ["🏷️ 各類別消費狀況", "🗓️ 各月份消費情況"], index=0, key="y_view_mode")
         with y_sel_col3:
             if y_view_mode == "🗓️ 各月份消費情況":
-                # 各月份消費預設為 折線圖 (Line)
                 y_chart_type = st.selectbox("📊 選擇圖表類型：", ["📈 折線圖 (Line)", "📊 柱狀圖 (Bar)"], index=0, key="y_chart_type")
             else:
-                # 各類別消費預設為 環形圖 (Donut)
                 y_chart_type = st.selectbox("📊 選擇圖表類型：", ["🍩 環形圖 (Donut)", "🥧 圓餅圖 (Pie)", "📊 柱狀圖 (Bar)"], index=0, key="y_chart_type")
         
         y_df = df[df['year'] == selected_year]
