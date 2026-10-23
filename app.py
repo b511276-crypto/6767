@@ -9,6 +9,7 @@ import base64
 from PIL import Image, ImageDraw
 import io
 import plotly.express as px
+from streamlit_cropper import st_cropper
 
 # 1. 頁面基本設定
 st.set_page_config(page_title="記帳本", layout="wide")
@@ -470,43 +471,48 @@ def cute_status_dialog(msg_type):
 if st.session_state.show_popup_type:
     cute_status_dialog(st.session_state.show_popup_type)
 
-# ✂️ 6. 彈出式「圖片上傳與自動圓形裁切」小視窗
+# 🎯【需求 4】彈出式「圖片自由裁切」小視窗（使用 streamlit-cropper）
 @st.dialog("🖼️ 上傳與裁切個人頭像")
 def avatar_upload_dialog():
-    st.markdown("請選擇一張電腦中的圖片，系統會**自動進行圓形縮放裁切**並設定為個人頭像：")
+    st.markdown("請選擇一張電腦中的圖片，並在畫面上**自由拖拉/縮放裁切框**：")
     uploaded_file = st.file_uploader("選擇圖片檔 (JPG, PNG, WEBP)", type=["jpg", "jpeg", "png", "webp"], key="dlg_avatar_uploader")
     
     if uploaded_file is not None:
         try:
-            image = Image.open(uploaded_file).convert("RGBA")
-            min_dim = min(image.size)
-            left = (image.width - min_dim) / 2
-            top = (image.height - min_dim) / 2
-            right = (image.width + min_dim) / 2
-            bottom = (image.height + min_dim) / 2
-            image = image.crop((left, top, right, bottom))
-            image = image.resize((200, 200), Image.LANCZOS)
+            img = Image.open(uploaded_file).convert("RGBA")
             
-            mask = Image.new('L', (200, 200), 0)
-            draw = ImageDraw.Draw(mask)
-            draw.ellipse((0, 0, 200, 200), fill=255)
+            # 使用可互動拖拉的裁切元件
+            cropped_img = st_cropper(
+                img,
+                realtime_update=True,
+                box_color="#ffb7c5",
+                aspect_ratio=(1, 1),
+                key="cropper_widget"
+            )
             
-            output = Image.new('RGBA', (200, 200), (0, 0, 0, 0))
-            output.paste(image, (0, 0), mask)
-            
-            buffered = io.BytesIO()
-            output.save(buffered, format="PNG")
-            img_b64 = "data:image/png;base64," + base64.b64encode(buffered.getvalue()).decode()
-            
-            st.image(output, caption="✂️ 裁切後預覽", width=120)
-            
-            if st.button("💖 確定套用此頭像", type="primary", use_container_width=True):
-                if st.session_state.logged_in:
-                    update_user_avatar(st.session_state.username, "img", img_b64)
-                    st.session_state.avatar_type = "img"
-                    st.session_state.avatar_data = img_b64
-                    st.toast("🎉 頭像更新成功！", icon="✨")
-                    st.rerun()
+            if cropped_img is not None:
+                resized_img = cropped_img.resize((200, 200), Image.LANCZOS)
+                mask = Image.new('L', (200, 200), 0)
+                draw = ImageDraw.Draw(mask)
+                draw.ellipse((0, 0, 200, 200), fill=255)
+                
+                final_output = Image.new('RGBA', (200, 200), (0, 0, 0, 0))
+                final_output.paste(resized_img, (0, 0), mask)
+                
+                st.markdown("##### ✂️ 即時裁切預覽：")
+                st.image(final_output, width=110)
+                
+                buffered = io.BytesIO()
+                final_output.save(buffered, format="PNG")
+                img_b64 = "data:image/png;base64," + base64.b64encode(buffered.getvalue()).decode()
+                
+                if st.button("💖 確定套用裁切圖片為頭像", type="primary", use_container_width=True):
+                    if st.session_state.logged_in:
+                        update_user_avatar(st.session_state.username, "img", img_b64)
+                        st.session_state.avatar_type = "img"
+                        st.session_state.avatar_data = img_b64
+                        st.toast("🎉 頭像更新成功！", icon="✨")
+                        st.rerun()
         except Exception as e:
             st.error("⚠️ 圖片解析失敗，請試試其他圖片檔喔！")
 
@@ -802,10 +808,33 @@ with tab_input:
                 fav_options.append(lbl)
                 fav_items_map[lbl] = f_row
 
+    # 元件 Key 綁定，用於精準控管 value
+    k_fav = f"fav_select_{reset_key}"
+    k_item = f"item_input_{reset_key}"
+    k_cat = f"cat_input_{reset_key}"
+    k_amt = f"amt_input_{reset_key}"
+    k_curr = f"curr_input_{reset_key}"
+
+    # 🎯【需求 1】當常用選單切換時的回呼函式：選手動輸入則清空
+    def on_fav_change():
+        selected = st.session_state.get(k_fav)
+        if selected and selected != "不選擇常用（手動輸入）" and selected in fav_items_map:
+            f_data = fav_items_map[selected]
+            st.session_state[k_item] = str(f_data["item"])
+            st.session_state[k_cat] = f_data["category"] if f_data["category"] in CATEGORIES else None
+            st.session_state[k_amt] = str(f_data["original_amount"])
+            st.session_state[k_curr] = f_data["currency"] if f_data["currency"] in CURRENCY_MAP else "NT 新台幣"
+        else:
+            # 切回「手動輸入」全數清空
+            st.session_state[k_item] = ""
+            st.session_state[k_cat] = None
+            st.session_state[k_amt] = ""
+            st.session_state[k_curr] = "NT 新台幣"
+
     def on_change_main_input():
         st.session_state.show_popup_type = "switching"
 
-    # 🎯【修改點 1】「選擇日期」與「常用選單」在第一行併排
+    # 第一行：「選擇日期」與「常用選單」併排
     top_col1, top_col2 = st.columns(2)
     with top_col1:
         input_date = st.date_input(
@@ -817,43 +846,30 @@ with tab_input:
             on_change=on_change_main_input
         )
     with top_col2:
-        selected_fav = st.selectbox("常用選單", fav_options, key=f"fav_select_{reset_key}")
-
-    # 🎯【修改點 2】根據「常用選單」切換帶入，若為手動輸入，則 default_cat_index 設為 None (無預設)
-    if selected_fav != "不選擇常用（手動輸入）" and selected_fav in fav_items_map:
-        f_data = fav_items_map[selected_fav]
-        default_item_val = str(f_data["item"])
-        default_cat_val = f_data["category"] if f_data["category"] in CATEGORIES else None
-        default_cat_index = CATEGORIES.index(default_cat_val) if default_cat_val else None
-        default_amt_val = str(f_data["original_amount"])
-        default_curr_val = f_data["currency"] if f_data["currency"] in CURRENCY_MAP else "NT 新台幣"
-        default_curr_index = list(CURRENCY_MAP.keys()).index(default_curr_val)
-    else:
-        # 切回「手動輸入」自動清空
-        default_item_val = ""
-        default_cat_index = None  # 強制無預設值
-        default_amt_val = ""
-        default_curr_index = 0
+        st.selectbox("常用選單", fav_options, key=k_fav, on_change=on_fav_change)
 
     # 第二行：消費項目與消費分類
     f_col1, f_col2 = st.columns(2)
     with f_col1:
-        input_item = st.text_input("消費項目", value=default_item_val, placeholder="例如：韓國炸雞 🍗", key=f"item_input_{reset_key}")
+        input_item = st.text_input("消費項目", placeholder="例如：韓國炸雞 🍗", key=k_item)
     with f_col2:
-        # 🎯 分類 index 設為 default_cat_index，無選擇時預設為 None
-        input_category = st.selectbox("消費分類", CATEGORIES, index=default_cat_index, placeholder="請選擇分類...", key=f"cat_input_{reset_key}")
+        # 🎯【需求 3】消費分類 index 預設為 None（無預設選擇）
+        input_category = st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=k_cat)
 
     # 第三行：選擇幣別與花費金額
     amt_col1, amt_col2 = st.columns(2)
     with amt_col1:
-        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=default_curr_index, key=f"curr_input_{reset_key}", on_change=on_change_main_input)
+        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), key=k_curr, on_change=on_change_main_input)
     with amt_col2:
-        input_amount_str = st.text_input("花費金額", value=default_amt_val, placeholder="請輸入金額...", key=f"amt_input_{reset_key}")
+        # 🎯【需求 2】即時輸入金額隨時計算
+        input_amount_str = st.text_input("花費金額", placeholder="請輸入金額...", key=k_amt)
 
     current_live_rate = fetch_rate_by_date(currency, input_date)
 
+    # 🎯【需求 2】金額輸入的同時，隨時計算台幣即時折算金額
     try:
-        input_amount = float(input_amount_str.strip()) if input_amount_str.strip() else 0.0
+        val_str = st.session_state.get(k_amt, input_amount_str)
+        input_amount = float(str(val_str).strip()) if val_str and str(val_str).strip() else 0.0
     except ValueError:
         input_amount = 0.0
 
@@ -862,9 +878,12 @@ with tab_input:
     st.info(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
 
     if st.button("💖 儲存這筆紀錄", use_container_width=True, type="primary", key=f"submit_{reset_key}"):
-        if not input_item or not input_item.strip():
+        curr_item = st.session_state.get(k_item, input_item)
+        curr_cat = st.session_state.get(k_cat, input_category)
+
+        if not curr_item or not curr_item.strip():
             st.warning("⚠️ 請填寫消費項目名稱喔！")
-        elif input_category is None:
+        elif curr_cat is None:
             st.warning("⚠️ 請選擇消費分類喔！")
         elif input_amount <= 0:
             st.warning("⚠️ 請在上方的「花費金額」欄位輸入有效金額喔！")
@@ -882,8 +901,8 @@ with tab_input:
                     date_str=date_str,
                     year_num=year_num,
                     month_str=month_str,
-                    item=input_item.strip(),
-                    category=input_category,
+                    item=curr_item.strip(),
+                    category=curr_cat,
                     orig_amt=formatted_orig,
                     currency=currency,
                     rate=round(current_live_rate, 4),
@@ -894,8 +913,8 @@ with tab_input:
                     "date": date_str,
                     "year": year_num,
                     "month": month_str,
-                    "item": input_item.strip(),
-                    "category": input_category,
+                    "item": curr_item.strip(),
+                    "category": curr_cat,
                     "original_amount": formatted_orig,
                     "currency": currency,
                     "rate_used": round(current_live_rate, 4),
