@@ -301,7 +301,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
             st.toast("🗑️ 已成功刪除該筆資料！", icon="✨")
             st.rerun()
 
-# 6. 通用圖表繪製函式（刻度以 10 的倍數為單位）
+# 6. 通用圖表繪製函式（依金額自動以 10 的倍數/次方動態調整刻度）
 def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=False):
     chart_df = df_data.copy()
     
@@ -328,8 +328,8 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
 
     fig.update_xaxes(type='category')
     
-    # ✨ 強制設定 Y 軸刻度間隔以 10 的倍數（dtick=10）為單位顯示
-    fig.update_yaxes(dtick=10)
+    # 自動依數據範圍動態調配刻度（維持 10 的倍數整數）
+    fig.update_yaxes(nticks=6, tickformat=',d')
 
     fig.update_layout(
         title="",
