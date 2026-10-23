@@ -9,7 +9,6 @@ import base64
 from PIL import Image, ImageDraw
 import io
 import plotly.express as px
-from streamlit_cropper import st_cropper
 
 # 1. 頁面基本設定
 st.set_page_config(page_title="記帳本", layout="wide")
@@ -162,10 +161,59 @@ CURRENCY_MAP = {
     "£ 英鎊": {"code": "GBP", "fallback": 42.00}
 }
 
+# 📊 2年 ~ 10年歷史數據庫
+RATESVIEWER_10Y_DB = {
+    2017: {"USD": 30.43, "JPY": 0.2710, "CNY": 4.500, "KRW": 0.0270, "EUR": 34.35, "GBP": 39.20},
+    2018: {"USD": 30.15, "JPY": 0.2730, "CNY": 4.560, "KRW": 0.0270, "EUR": 35.60, "GBP": 40.20},
+    2019: {"USD": 30.91, "JPY": 0.2830, "CNY": 4.470, "KRW": 0.0260, "EUR": 34.60, "GBP": 39.50},
+    2020: {"USD": 29.58, "JPY": 0.2770, "CNY": 4.280, "KRW": 0.0250, "EUR": 33.80, "GBP": 37.90},
+    2021: {
+        "USD": 27.88, "JPY": 0.2540, "CNY": 4.330, "KRW": 0.0240, "EUR": 33.05, "GBP": 38.50,
+        "monthly": {
+            "2021-01": {"USD": 27.98}, "2021-02": {"USD": 27.85}, "2021-03": {"USD": 28.20},
+            "2021-04": {"USD": 28.25}, "2021-05": {"USD": 27.97}, "2021-06": {"USD": 27.81},
+            "2021-07": {"USD": 27.892, "JPY": 0.2520}, "2021-08": {"USD": 27.84},
+            "2021-09": {"USD": 27.69}, "2021-10": {"USD": 27.83}, "2021-11": {"USD": 27.75},
+            "2021-12": {"USD": 27.68}
+        }
+    },
+    2022: {"USD": 29.80, "JPY": 0.2270, "CNY": 4.420, "KRW": 0.0230, "EUR": 31.35, "GBP": 36.80},
+    2023: {"USD": 31.15, "JPY": 0.2200, "CNY": 4.350, "KRW": 0.0240, "EUR": 33.70, "GBP": 38.70},
+    2024: {"USD": 32.20, "JPY": 0.2080, "CNY": 4.450, "KRW": 0.0230, "EUR": 34.80, "GBP": 41.20},
+    2025: {"USD": 32.50, "JPY": 0.2120, "CNY": 4.480, "KRW": 0.0230, "EUR": 35.20, "GBP": 41.80}
+}
+
+# 🏛️ 10年 ~ 30年中央銀行外匯歷史數據庫 (擴充至 1995 年)
+CBC_LONGTERM_DB = {
+    2016: {"USD": 32.26, "JPY": 0.2970, "CNY": 4.850, "KRW": 0.0270, "EUR": 35.70, "GBP": 43.60},
+    2015: {"USD": 31.89, "JPY": 0.2640, "CNY": 5.080, "KRW": 0.0280, "EUR": 35.30, "GBP": 48.80},
+    2014: {"USD": 30.37, "JPY": 0.2870, "CNY": 4.940, "KRW": 0.0288, "EUR": 40.26, "GBP": 50.08},
+    2013: {"USD": 29.77, "JPY": 0.3050, "CNY": 4.850, "KRW": 0.0272, "EUR": 39.50, "GBP": 46.50},
+    2012: {"USD": 29.62, "JPY": 0.3710, "CNY": 4.690, "KRW": 0.0263, "EUR": 38.04, "GBP": 46.90},
+    2011: {"USD": 29.47, "JPY": 0.3690, "CNY": 4.560, "KRW": 0.0266, "EUR": 41.02, "GBP": 47.20},
+    2010: {"USD": 31.64, "JPY": 0.3610, "CNY": 4.670, "KRW": 0.0274, "EUR": 41.98, "GBP": 48.90},
+    2009: {"USD": 33.05, "JPY": 0.3530, "CNY": 4.830, "KRW": 0.0259, "EUR": 46.00, "GBP": 51.60},
+    2008: {"USD": 31.52, "JPY": 0.3060, "CNY": 4.530, "KRW": 0.0286, "EUR": 46.30, "GBP": 58.20},
+    2007: {"USD": 32.84, "JPY": 0.2790, "CNY": 4.320, "KRW": 0.0354, "EUR": 44.90, "GBP": 65.60},
+    2006: {"USD": 32.53, "JPY": 0.2790, "CNY": 4.080, "KRW": 0.0341, "EUR": 40.80, "GBP": 59.90},
+    2005: {"USD": 32.17, "JPY": 0.2920, "CNY": 3.930, "KRW": 0.0314, "EUR": 40.10, "GBP": 58.50},
+    2004: {"USD": 33.43, "JPY": 0.3090, "CNY": 4.040, "KRW": 0.0292, "EUR": 41.50, "GBP": 61.20},
+    2003: {"USD": 34.42, "JPY": 0.2970, "CNY": 4.160, "KRW": 0.0289, "EUR": 38.90, "GBP": 56.20},
+    2002: {"USD": 34.58, "JPY": 0.2760, "CNY": 4.180, "KRW": 0.0276, "EUR": 32.60, "GBP": 51.90},
+    2001: {"USD": 33.80, "JPY": 0.2780, "CNY": 4.080, "KRW": 0.0262, "EUR": 30.30, "GBP": 48.70},
+    2000: {"USD": 31.23, "JPY": 0.2900, "CNY": 3.770, "KRW": 0.0276, "EUR": 28.80, "GBP": 47.30},
+    1999: {"USD": 32.27, "JPY": 0.2830, "CNY": 3.900, "KRW": 0.0271, "EUR": 34.40, "GBP": 52.20},
+    1998: {"USD": 33.46, "JPY": 0.2560, "CNY": 4.040, "KRW": 0.0239, "EUR": 37.50, "GBP": 55.40},
+    1997: {"USD": 28.70, "JPY": 0.2370, "CNY": 3.460, "KRW": 0.0302, "EUR": 32.40, "GBP": 47.00},
+    1996: {"USD": 27.49, "JPY": 0.2530, "CNY": 3.310, "KRW": 0.0342, "EUR": 35.10, "GBP": 42.90},
+    1995: {"USD": 26.49, "JPY": 0.2820, "CNY": 3.170, "KRW": 0.0343, "EUR": 34.70, "GBP": 41.80}
+}
+
 CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", "🎮 娛樂遊玩", "🏠 居家日常", "💊 醫療健康", "✨ 其他雜項"]
 
 MACARON_COLORS = ['#ffb7c5', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#e0bbe4', '#fec8d8']
 
+# ⚡ 精準匯率檢索
 def fetch_rate_by_date(currency_label, target_date):
     if currency_label == "NT 新台幣":
         return 1.0
@@ -176,6 +224,8 @@ def fetch_rate_by_date(currency_label, target_date):
     today = date.today()
     check_date = min(target_date, today)
     days_diff = (today - check_date).days
+    target_year = check_date.year
+    target_month_str = check_date.strftime("%Y-%m")
 
     if days_diff <= 365:
         try:
@@ -185,9 +235,29 @@ def fetch_rate_by_date(currency_label, target_date):
                 data = res.json()
                 if "rates" in data and "TWD" in data["rates"]:
                     val = float(data["rates"]["TWD"])
+                    if code in ["USD", "EUR", "GBP"] and val < 10:
+                        return fallback
+                    if code == "JPY" and val > 1.0:
+                        return fallback
+                    if code == "KRW" and val > 0.2:
+                        return fallback
+                    if code == "CNY" and (val < 2 or val > 10):
+                        return fallback
                     return round(val, 4)
         except Exception:
             pass
+
+    if target_year in RATESVIEWER_10Y_DB:
+        year_db = RATESVIEWER_10Y_DB[target_year]
+        if "monthly" in year_db and target_month_str in year_db["monthly"]:
+            month_db = year_db["monthly"][target_month_str]
+            if code in month_db:
+                return month_db[code]
+        if code in year_db:
+            return year_db[code]
+
+    if target_year in CBC_LONGTERM_DB and code in CBC_LONGTERM_DB[target_year]:
+        return CBC_LONGTERM_DB[target_year][code]
 
     return fallback
 
@@ -226,7 +296,7 @@ st.markdown("""
         line-height: 1.3;
         text-align: center;
     }
-
+    
     .cute-header p { 
         font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif;
         color: #7d5a60; 
@@ -237,6 +307,22 @@ st.markdown("""
         text-align: center;
     }
 
+    .popup-box {
+        text-align: center;
+        padding: 1.5rem 1rem;
+    }
+    
+    .popup-icon {
+        font-size: 3.2rem;
+        margin-bottom: 0.8rem;
+        animation: pulse 1.2s infinite alternate;
+    }
+
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        100% { transform: scale(1.15); }
+    }
+    
     .sidebar-user-card {
         background-color: #ffffff;
         border: 2px solid #ffd1dc;
@@ -291,26 +377,11 @@ st.markdown("""
     .stat-label { font-size: 0.95rem; color: #8b7d83; font-weight: 700; }
     .stat-value { font-size: 2.1rem; font-weight: 800; color: #ff6b81; margin-top: 0.3rem; }
     
-    /* 🎯 明細對齊修復 CSS */
-    .item-left-align {
-        display: flex;
-        align-items: center;
-        height: 38px;
-        font-weight: 700;
-        color: #5c4b51;
-        font-size: 0.95rem;
-    }
-
     .amount-right-align {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        height: 38px;
+        text-align: right !important;
         font-weight: 700;
         color: #5c4b51;
-        text-align: right;
-        font-size: 0.95rem;
-        padding-right: 5px;
+        width: 100%;
     }
 
     div.stButton > button[kind="primary"] {
@@ -326,6 +397,13 @@ st.markdown("""
         background-color: #c94353 !important;
         border-color: #c94353 !important;
         box-shadow: 0 6px 16px rgba(201, 67, 83, 0.35) !important;
+    }
+
+    /* 縮小星星常用按鈕之邊界與排版 */
+    div[data-testid="stColumn"] button[help="點擊設定/取消為常用項目"] {
+        padding: 2px 6px !important;
+        font-size: 0.85rem !important;
+        min-height: 32px !important;
     }
 
     #MainMenu {visibility: hidden;} footer {visibility: hidden;}
@@ -350,23 +428,13 @@ if 'confirm_delete_account' not in st.session_state:
 if 'show_popup_type' not in st.session_state:
     st.session_state.show_popup_type = None
 
-# 預填欄位的 Session State
-if 'preset_item' not in st.session_state:
-    st.session_state.preset_item = ""
-if 'preset_cat' not in st.session_state:
-    st.session_state.preset_cat = CATEGORIES[0]
-if 'preset_amt' not in st.session_state:
-    st.session_state.preset_amt = ""
-if 'preset_curr' not in st.session_state:
-    st.session_state.preset_curr = "NT 新台幣"
-
 # 🌟 5. 可愛的提示視窗
 @st.dialog("🌸 系統訊息")
 def cute_status_dialog(msg_type):
     if msg_type == "switching":
         st.markdown("""
-        <div style="text-align: center; padding: 1.5rem 1rem;">
-            <div style="font-size: 3.2rem; margin-bottom: 0.8rem;">🔄✨</div>
+        <div class="popup-box">
+            <div class="popup-icon">🔄✨</div>
             <h3 style="color: #ff6b81; font-weight: 800;">切換中，請稍後...</h3>
             <p style="color: #8b7d83; font-weight: 700;">正在為您精準連線並獲取最新匯率數字喔！</p>
         </div>
@@ -378,8 +446,8 @@ def cute_status_dialog(msg_type):
             
     elif msg_type == "saved":
         st.markdown("""
-        <div style="text-align: center; padding: 1.5rem 1rem;">
-            <div style="font-size: 3.2rem; margin-bottom: 0.8rem;">🎉💖</div>
+        <div class="popup-box">
+            <div class="popup-icon">🎉💖</div>
             <h3 style="color: #ff6b81; font-weight: 800;">資料儲存成功！</h3>
             <p style="color: #8b7d83; font-weight: 700;">已經為你完美紀錄這筆生活消費囉！</p>
         </div>
@@ -388,8 +456,8 @@ def cute_status_dialog(msg_type):
         
     elif msg_type == "updated":
         st.markdown("""
-        <div style="text-align: center; padding: 1.5rem 1rem;">
-            <div style="font-size: 3.2rem; margin-bottom: 0.8rem;">✏️🌸</div>
+        <div class="popup-box">
+            <div class="popup-icon">✏️🌸</div>
             <h3 style="color: #ff6b81; font-weight: 800;">修改完成！</h3>
             <p style="color: #8b7d83; font-weight: 700;">消費紀錄已經更新完畢囉！</p>
         </div>
@@ -402,49 +470,45 @@ def cute_status_dialog(msg_type):
 if st.session_state.show_popup_type:
     cute_status_dialog(st.session_state.show_popup_type)
 
-# ✂️ 6. 彈出式「自由選取範圍」裁切視窗（使用 streamlit-cropper）
-@st.dialog("✂️ 選擇圖片與裁切範圍")
+# ✂️ 6. 彈出式「圖片上傳與自動圓形裁切」小視窗
+@st.dialog("🖼️ 上傳與裁切個人頭像")
 def avatar_upload_dialog():
-    st.markdown("請選擇一張電腦中的圖片，並在畫面上**自由拖拉/縮放裁切框**：")
-    uploaded_file = st.file_uploader("選擇圖片檔 (JPG, PNG, WEBP)", type=["jpg", "jpeg", "png", "webp"], key="dlg_cropper_uploader")
+    st.markdown("請選擇一張電腦中的圖片，系統會**自動進行圓形縮放裁切**並設定為個人頭像：")
+    uploaded_file = st.file_uploader("選擇圖片檔 (JPG, PNG, WEBP)", type=["jpg", "jpeg", "png", "webp"], key="dlg_avatar_uploader")
     
     if uploaded_file is not None:
         try:
-            img = Image.open(uploaded_file).convert("RGBA")
+            image = Image.open(uploaded_file).convert("RGBA")
+            min_dim = min(image.size)
+            left = (image.width - min_dim) / 2
+            top = (image.height - min_dim) / 2
+            right = (image.width + min_dim) / 2
+            bottom = (image.height + min_dim) / 2
+            image = image.crop((left, top, right, bottom))
+            image = image.resize((200, 200), Image.LANCZOS)
             
-            cropped_img = st_cropper(
-                img,
-                realtime_update=True,
-                box_color="#ffb7c5",
-                aspect_ratio=(1, 1),
-                key="cropper_widget"
-            )
+            mask = Image.new('L', (200, 200), 0)
+            draw = ImageDraw.Draw(mask)
+            draw.ellipse((0, 0, 200, 200), fill=255)
             
-            if cropped_img is not None:
-                resized_img = cropped_img.resize((200, 200), Image.LANCZOS)
-                mask = Image.new('L', (200, 200), 0)
-                draw = ImageDraw.Draw(mask)
-                draw.ellipse((0, 0, 200, 200), fill=255)
-                
-                final_output = Image.new('RGBA', (200, 200), (0, 0, 0, 0))
-                final_output.paste(resized_img, (0, 0), mask)
-                
-                st.markdown("##### ✂️ 即時預覽結果：")
-                st.image(final_output, width=110)
-                
-                buffered = io.BytesIO()
-                final_output.save(buffered, format="PNG")
-                img_b64 = "data:image/png;base64," + base64.b64encode(buffered.getvalue()).decode()
-                
-                if st.button("💖 確定套用裁切圖片為頭像", type="primary", use_container_width=True):
-                    if st.session_state.logged_in:
-                        update_user_avatar(st.session_state.username, "img", img_b64)
-                        st.session_state.avatar_type = "img"
-                        st.session_state.avatar_data = img_b64
-                        st.toast("🎉 頭像更新成功！", icon="✨")
-                        st.rerun()
+            output = Image.new('RGBA', (200, 200), (0, 0, 0, 0))
+            output.paste(image, (0, 0), mask)
+            
+            buffered = io.BytesIO()
+            output.save(buffered, format="PNG")
+            img_b64 = "data:image/png;base64," + base64.b64encode(buffered.getvalue()).decode()
+            
+            st.image(output, caption="✂️ 裁切後預覽", width=120)
+            
+            if st.button("💖 確定套用此頭像", type="primary", use_container_width=True):
+                if st.session_state.logged_in:
+                    update_user_avatar(st.session_state.username, "img", img_b64)
+                    st.session_state.avatar_type = "img"
+                    st.session_state.avatar_data = img_b64
+                    st.toast("🎉 頭像更新成功！", icon="✨")
+                    st.rerun()
         except Exception as e:
-            st.error("⚠️ 圖片解析失敗，請試試其他圖片檔案喔！")
+            st.error("⚠️ 圖片解析失敗，請試試其他圖片檔喔！")
 
 # 7. 彈出式修改記帳小視窗
 @st.dialog("✏️ 修改記帳紀錄")
@@ -722,12 +786,12 @@ else:
 # 13. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：日期與常用並排在第一行，全整合 HTML/JS 表單 ---
+# --- 分頁 1：常用選單置於「新增一筆消費」旁邊並預填表單 ---
 with tab_input:
     reset_key = st.session_state.form_reset_key
 
-    # 準備常用選項資料映射表
-    fav_options = ["不選擇（手動輸入）"]
+    # 準備常用項目選項資料
+    fav_options = ["不選擇常用（手動輸入）"]
     fav_items_map = {}
     
     if not df.empty and "is_favorite" in df.columns:
@@ -738,26 +802,31 @@ with tab_input:
                 fav_options.append(lbl)
                 fav_items_map[lbl] = f_row
 
-    def on_fav_change():
-        selected = st.session_state[f"fav_select_{reset_key}"]
-        if selected != "不選擇（手動輸入）" and selected in fav_items_map:
-            f = fav_items_map[selected]
-            st.session_state.preset_item = str(f["item"])
-            st.session_state.preset_cat = f["category"] if f["category"] in CATEGORIES else CATEGORIES[0]
-            st.session_state.preset_amt = str(f["original_amount"])
-            st.session_state.preset_curr = f["currency"] if f["currency"] in CURRENCY_MAP else "NT 新台幣"
-        else:
-            st.session_state.preset_item = ""
-            st.session_state.preset_cat = CATEGORIES[0]
-            st.session_state.preset_amt = ""
-            st.session_state.preset_curr = "NT 新台幣"
+    # 📍 標題與「常用選單」放在同一列（並排）
+    header_col1, header_col2 = st.columns([1.2, 1])
+    with header_col1:
+        st.subheader("💮 新增一筆消費")
+    with header_col2:
+        selected_fav = st.selectbox("常用", fav_options, key=f"fav_select_{reset_key}", label_visibility="visible")
+
+    # 根據選取的常用項目，自動賦予預設填入值
+    if selected_fav != "不選擇常用（手動輸入）" and selected_fav in fav_items_map:
+        f_data = fav_items_map[selected_fav]
+        default_item_val = f_data["item"]
+        default_cat_val = f_data["category"] if f_data["category"] in CATEGORIES else None
+        default_amt_val = str(f_data["original_amount"])
+        default_curr_val = f_data["currency"] if f_data["currency"] in CURRENCY_MAP else "NT 新台幣"
+    else:
+        default_item_val = ""
+        default_cat_val = None
+        default_amt_val = ""
+        default_curr_val = "NT 新台幣"
 
     def on_change_main_input():
         st.session_state.show_popup_type = "switching"
 
-    # 🎯【重點修正 1】將「選擇日期」與「常用」併排在第一行雙欄中！
-    top_col1, top_col2 = st.columns(2)
-    with top_col1:
+    input_col1, input_col2 = st.columns(2)
+    with input_col1:
         input_date = st.date_input(
             "選擇日期 (年/月/日)", 
             datetime.now().date(), 
@@ -766,112 +835,39 @@ with tab_input:
             key=f"date_{reset_key}", 
             on_change=on_change_main_input
         )
-    with top_col2:
-        st.selectbox("常用", fav_options, key=f"fav_select_{reset_key}", on_change=on_fav_change)
+    with input_col2:
+        curr_idx = list(CURRENCY_MAP.keys()).index(default_curr_val) if default_curr_val in CURRENCY_MAP else 0
+        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=curr_idx, key=f"curr_{reset_key}", on_change=on_change_main_input)
 
-    # 取得目前預設值
-    p_item = st.session_state.preset_item
-    p_cat = st.session_state.preset_cat
-    p_amt = st.session_state.preset_amt
-    p_curr = st.session_state.preset_curr
+    current_live_rate = fetch_rate_by_date(currency, input_date)
 
-    # 生成分類與幣別 Options HTML
-    cat_options_html = "".join([f'<option value="{c}" {"selected" if c == p_cat else ""}>{c}</option>' for c in CATEGORIES])
-    curr_options_html = "".join([f'<option value="{c}" {"selected" if c == p_curr else ""}>{c}</option>' for c in CURRENCY_MAP.keys()])
+    f_col1, f_col2 = st.columns(2)
+    with f_col1:
+        input_item = st.text_input("消費項目", value=default_item_val, placeholder="例如：韓國炸雞 🍗", key=f"item_{reset_key}")
+    with f_col2:
+        cat_idx = CATEGORIES.index(default_cat_val) if default_cat_val in CATEGORIES else None
+        input_category = st.selectbox("消費分類", CATEGORIES, index=cat_idx, placeholder="請選擇分類...", key=f"cat_{reset_key}")
+    
+    st.markdown("**花費金額**")
+    input_amount_str = st.text_input("請輸入金額...", value=default_amt_val, placeholder="請輸入金額...", key=f"amt_str_{reset_key}", label_visibility="collapsed")
 
-    # 即時計算牌告匯率字串
-    rates_js_obj = "{" + ", ".join([f'"{k}": {fetch_rate_by_date(k, input_date)}' for k in CURRENCY_MAP.keys()]) + "}"
+    # 即時計算台幣
+    try:
+        input_amount = float(input_amount_str.strip()) if input_amount_str.strip() else 0.0
+    except ValueError:
+        input_amount = 0.0
 
-    # 全打包 HTML/JS 獨立表單
-    full_form_html = f"""
-    <div style="font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif; color: #5c4b51;">
-        <form id="fullExpenseForm" action="" method="post" style="margin:0; padding:0;">
-            <div style="display: flex; gap: 16px; margin-bottom: 12px;">
-                <div style="flex: 1;">
-                    <label style="font-weight: 700; font-size: 0.9rem; margin-bottom: 6px; display: block;">消費項目</label>
-                    <input type="text" id="form_item" name="item" value="{p_item}" placeholder="例如：韓國炸雞 🍗"
-                           style="width: 100%; padding: 10px 14px; font-size: 0.95rem; border-radius: 12px; border: 1px solid #dcdfe6; background-color: #ffffff; color: #5c4b51; outline: none; box-sizing: border-box;">
-                </div>
-                <div style="flex: 1;">
-                    <label style="font-weight: 700; font-size: 0.9rem; margin-bottom: 6px; display: block;">消費分類</label>
-                    <select id="form_cat" name="category" style="width: 100%; padding: 10px 14px; font-size: 0.95rem; border-radius: 12px; border: 1px solid #dcdfe6; background-color: #ffffff; color: #5c4b51; outline: none; box-sizing: border-box;">
-                        {cat_options_html}
-                    </select>
-                </div>
-            </div>
+    calc_twd = int(round(input_amount * current_live_rate)) if input_amount > 0 else 0
+    st.info(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
 
-            <div style="display: flex; gap: 16px; margin-bottom: 12px;">
-                <div style="flex: 1;">
-                    <label style="font-weight: 700; font-size: 0.9rem; margin-bottom: 6px; display: block;">選擇幣別</label>
-                    <select id="form_curr" name="currency" onchange="calcRealtime()" style="width: 100%; padding: 10px 14px; font-size: 0.95rem; border-radius: 12px; border: 1px solid #dcdfe6; background-color: #ffffff; color: #5c4b51; outline: none; box-sizing: border-box;">
-                        {curr_options_html}
-                    </select>
-                </div>
-                <div style="flex: 1;">
-                    <label style="font-weight: 700; font-size: 0.9rem; margin-bottom: 6px; display: block;">花費金額</label>
-                    <input type="text" id="form_amt" name="amount" value="{p_amt}" placeholder="請輸入金額..." oninput="calcRealtime()"
-                           style="width: 100%; padding: 10px 14px; font-size: 0.95rem; border-radius: 12px; border: 1px solid #dcdfe6; background-color: #ffffff; color: #5c4b51; outline: none; box-sizing: border-box;">
-                </div>
-            </div>
-
-            <div style="margin-top: 10px; background-color: #e8f4f8; padding: 12px 16px; border-radius: 12px; color: #2c3e50; font-size: 0.95rem; font-weight: 500;">
-                💡 當前即時牌告匯率：<b id="rate_info_text">1 TWD ≈ 1.0 TWD</b> | 折算預覽：<b id="live_calc_preview" style="color: #0056b3; font-size: 1.1rem;">NT$ 0</b>
-            </div>
-
-            <button type="submit" 
-                    style="width: 100%; margin-top: 16px; background-color: #e05263; color: white; border: none; padding: 12px 18px; border-radius: 14px; font-weight: 700; font-size: 1.05rem; cursor: pointer; box-shadow: 0 4px 12px rgba(224, 82, 99, 0.25);">
-                💖 儲存這筆紀錄
-            </button>
-        </form>
-    </div>
-
-    <script>
-        var ratesMap = {rates_js_obj};
-
-        function calcRealtime() {{
-            var currSelect = document.getElementById('form_curr').value;
-            var rate = ratesMap[currSelect] || 1.0;
-            
-            var currCode = currSelect.split(' ')[1] || 'TWD';
-            document.getElementById('rate_info_text').innerText = '1 ' + currCode + ' ≈ ' + rate + ' TWD';
-
-            var val = document.getElementById('form_amt').value;
-            var cleanVal = val.replace(/[^0-9.]/g, '');
-            var num = parseFloat(cleanVal);
-            var result = 0;
-            if (!isNaN(num) && num > 0) {{
-                result = Math.round(num * rate);
-            }}
-            document.getElementById('live_calc_preview').innerText = 'NT$ ' + result.toLocaleString();
-        }}
-        calcRealtime();
-    </script>
-    """
-
-    st.components.v1.html(full_form_html, height=275)
-
-    # 接收與處理完整表單提交
-    post_item = st.query_params.get("item", "")
-    post_cat = st.query_params.get("category", "")
-    post_curr = st.query_params.get("currency", "")
-    post_amt = st.query_params.get("amount", "")
-
-    if post_item or post_amt:
-        st.query_params.clear()
-        
-        try:
-            input_amount = float(post_amt)
-        except ValueError:
-            input_amount = 0.0
-
-        if not post_item.strip():
+    if st.button("💖 儲存這筆紀錄", use_container_width=True, type="primary", key=f"submit_{reset_key}"):
+        if not input_item.strip():
             st.warning("⚠️ 請填寫消費項目名稱喔！")
-        elif not post_cat:
+        elif input_category is None:
             st.warning("⚠️ 請選擇消費分類喔！")
         elif input_amount <= 0:
             st.warning("⚠️ 請在上方的「花費金額」欄位輸入有效金額喔！")
         else:
-            current_live_rate = fetch_rate_by_date(post_curr, input_date)
             date_str = input_date.strftime("%Y-%m-%d")
             year_num = input_date.year
             month_str = input_date.strftime("%Y-%m")
@@ -885,10 +881,10 @@ with tab_input:
                     date_str=date_str,
                     year_num=year_num,
                     month_str=month_str,
-                    item=post_item.strip(),
-                    category=post_cat,
+                    item=input_item.strip(),
+                    category=input_category,
                     orig_amt=formatted_orig,
-                    currency=post_curr,
+                    currency=currency,
                     rate=round(current_live_rate, 4),
                     amt_twd=amount_twd_val
                 )
@@ -897,20 +893,16 @@ with tab_input:
                     "date": date_str,
                     "year": year_num,
                     "month": month_str,
-                    "item": post_item.strip(),
-                    "category": post_cat,
+                    "item": input_item.strip(),
+                    "category": input_category,
                     "original_amount": formatted_orig,
-                    "currency": post_curr,
+                    "currency": currency,
                     "rate_used": round(current_live_rate, 4),
                     "amount_twd": amount_twd_val,
                     "is_favorite": 0
                 }
                 st.session_state.guest_expenses.append(new_rec)
 
-            st.session_state.preset_item = ""
-            st.session_state.preset_cat = CATEGORIES[0]
-            st.session_state.preset_amt = ""
-            st.session_state.preset_curr = "NT 新台幣"
             st.session_state.form_reset_key += 1
             st.session_state.show_popup_type = "saved"
             st.rerun()
@@ -945,16 +937,16 @@ with tab_input:
             else:
                 right_amount = f"{rec['currency']} {rec['original_amount']} (折算 NT {rec['amount_twd']:,}，匯率 {rec['rate_used']:.4f})"
             
-            # 🎯【重點修正 2】調整欄位寬度與 CSS 強制文字垂直居中且靠右！
-            list_col1, list_col2, list_col3, list_col4 = st.columns([3.5, 5.5, 1, 1])
+            list_col1, list_col2, list_col3, list_col4 = st.columns([5, 3.8, 1.1, 0.8])
             with list_col1:
-                st.markdown(f'<div class="item-left-align">{left_info}</div>', unsafe_allow_html=True)
+                st.write(f"**{left_info}**")
             with list_col2:
                 st.markdown(f'<div class="amount-right-align">{right_amount}</div>', unsafe_allow_html=True)
             with list_col3:
                 if st.button("✏️ 修改", key=f"btn_edit_{prefix}_{rec_id}", use_container_width=True):
                     edit_expense_dialog(rec, rec_id, prefix)
             with list_col4:
+                # ⭐️ 小型化星星按鈕
                 if st.button(star_icon, key=f"btn_fav_{prefix}_{rec_id}", use_container_width=True, help="點擊設定/取消為常用項目"):
                     if st.session_state.logged_in:
                         new_st = toggle_favorite_db(rec_id, is_fav)
