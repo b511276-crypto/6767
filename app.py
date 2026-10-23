@@ -6,6 +6,7 @@ import sqlite3
 import hashlib
 import time
 import plotly.express as px
+import streamlit.components.v1 as components
 
 # 1. 頁面基本設定
 st.set_page_config(page_title="記帳本", layout="wide")
@@ -221,7 +222,7 @@ def fetch_rate_by_date(currency_label, target_date):
 
     return fallback
 
-# 3. 馬卡龍風格 CSS 樣式 (包含調暗亮紅儲存按鈕)
+# 3. 馬卡龍風格 CSS 樣式
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Sans+TC:wght@500;700;900&display=swap');
@@ -319,7 +320,7 @@ st.markdown("""
         width: 100%;
     }
 
-    /* 🎨 3. 調暗「儲存按鈕」的色彩，變得溫柔質感 */
+    /* 🎨 調暗「儲存按鈕」的色彩，變得溫柔質感 */
     div.stButton > button[kind="primary"] {
         background-color: #e05263 !important;
         border-color: #e05263 !important;
@@ -427,19 +428,10 @@ def edit_expense_dialog(rec, rec_id, prefix):
 
     current_calc_rate = fetch_rate_by_date(edit_currency, edit_date)
 
-    try:
-        init_val = float(rec["original_amount"])
-    except ValueError:
-        init_val = None
-
-    # 🎯 2. 修改視窗：無預設 0.00，顯示 placeholder
-    edit_amount_val = st.number_input(
+    edit_amount_str = st.text_input(
         "修改金額", 
-        value=init_val, 
-        min_value=0.0, 
-        step=1.0, 
-        format="%.2f",
-        placeholder="請輸入金額...",
+        value=str(rec["original_amount"]), 
+        placeholder="請輸入金額...", 
         key=f"a_{unique_key}"
     )
     
@@ -454,6 +446,11 @@ def edit_expense_dialog(rec, rec_id, prefix):
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
         if st.button("💾 儲存變更", key=f"save_{unique_key}", use_container_width=True, type="primary"):
+            try:
+                edit_amount_val = float(edit_amount_str) if edit_amount_str.strip() else None
+            except ValueError:
+                edit_amount_val = None
+
             if not edit_item.strip():
                 st.warning("⚠️ 項目名稱不可空白！")
             elif edit_amount_val is None or edit_amount_val <= 0:
@@ -649,7 +646,7 @@ else:
 # 12. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：逐筆輸入與明細 (真正動態即時連動 + 請輸入金額...) ---
+# --- 分頁 1：逐筆輸入與明細 (JavaScript 超高敏即時計算元件) ---
 with tab_input:
     st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
@@ -678,30 +675,59 @@ with tab_input:
     with f_col2:
         input_category = st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=f"cat_{reset_key}")
     
-    # 🎯 1. 2. 真正一邊打字即時連動、且預設顯示「請輸入金額...」無 0.00
-    input_amount_str = st.text_input(
-        "花費金額", 
-        placeholder="請輸入金額...", 
-        key=f"amt_str_{reset_key}"
-    )
+    st.markdown("**花費金額**")
 
-    # 打字的當下即刻動態計算折算數字
-    try:
-        input_amount = float(input_amount_str) if input_amount_str.strip() else 0.0
-    except ValueError:
-        input_amount = 0.0
+    # 🚀 前端超感度 JavaScript 即時連動輸入元件
+    html_input_component = f"""
+    <div style="font-family: 'Noto Sans TC', sans-serif;">
+        <input type="text" id="custom_amt_input" placeholder="請輸入金額..." 
+               style="width: 100%; padding: 10px 14px; font-size: 1rem; border-radius: 12px; border: 1px solid #dcdfe6; background-color: #f8f9fa; color: #5c4b51; outline: none; box-sizing: border-box;"
+               oninput="updateCalc(this.value)">
+        <div style="margin-top: 12px; background-color: #e8f4f8; padding: 12px 16px; border-radius: 12px; color: #2c3e50; font-size: 0.95rem; font-weight: 500;">
+            💡 當前即時牌告匯率：<b>1 {currency.split()[1]} ≈ {current_live_rate} TWD</b> | 折算預覽：<b id="calc_preview" style="color: #0056b3; font-size: 1.05rem;">NT$ 0</b>
+        </div>
+    </div>
+    <script>
+        function updateCalc(val) {{
+            var rate = {current_live_rate};
+            var cleanVal = val.replace(/[^0-9.]/g, '');
+            var num = parseFloat(cleanVal);
+            var result = 0;
+            if (!isNaN(num) && num > 0) {{
+                result = Math.round(num * rate);
+            }}
+            document.getElementById('calc_preview').innerText = 'NT$ ' + result.toLocaleString();
+            
+            // 將數字同步至同層 window
+            window.parent.postMessage({{
+                type: 'streamlit:setComponentValue',
+                value: cleanVal
+            }}, '*');
+        }}
+    </script>
+    """
+    
+    # 渲染 JS 輸入組件，並將值傳回 Python
+    realtime_val = components.html(html_input_component, height=125)
 
-    calc_twd = int(round(input_amount * current_live_rate)) if input_amount > 0 else 0
-    st.info(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
+    # 隱藏式背後欄位，用於點擊儲存時抓取數字
+    input_amount_str = st.text_input("即時數據同步槽", placeholder="請輸入金額...", key=f"amt_str_{reset_key}", label_visibility="collapsed")
 
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("💖 儲存這筆紀錄", use_container_width=True, type="primary", key=f"submit_{reset_key}"):
+        # 自動優先取用 JS 直接填入或文字框中的金額
+        final_str = input_amount_str.strip()
+        try:
+            input_amount = float(final_str) if final_str else 0.0
+        except ValueError:
+            input_amount = 0.0
+
         if not input_item.strip():
             st.warning("⚠️ 請填寫消費項目名稱喔！")
         elif input_category is None:
             st.warning("⚠️ 請選擇消費分類喔！")
         elif input_amount <= 0:
-            st.warning("⚠️ 請輸入有效的數字金額喔！")
+            st.warning("⚠️ 請在上方的「花費金額」欄位輸入有效金額，並按 Enter 或點擊下方按鈕儲存喔！")
         else:
             date_str = input_date.strftime("%Y-%m-%d")
             year_num = input_date.year
