@@ -291,11 +291,17 @@ st.markdown("""
     .stat-label { font-size: 0.95rem; color: #8b7d83; font-weight: 700; }
     .stat-value { font-size: 2.1rem; font-weight: 800; color: #ff6b81; margin-top: 0.3rem; }
     
+    /* 🎯 專門修正右側金額的對齊 */
     .amount-right-align {
         text-align: right !important;
         font-weight: 700;
         color: #5c4b51;
         width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        min-height: 38px;
+        line-height: 1.4;
     }
 
     div.stButton > button[kind="primary"] {
@@ -334,6 +340,16 @@ if 'confirm_delete_account' not in st.session_state:
     st.session_state.confirm_delete_account = False
 if 'show_popup_type' not in st.session_state:
     st.session_state.show_popup_type = None
+
+# 用於紀錄常用預預填值的 State
+if 'preset_item_val' not in st.session_state:
+    st.session_state.preset_item_val = ""
+if 'preset_cat_val' not in st.session_state:
+    st.session_state.preset_cat_val = None
+if 'preset_amt_val' not in st.session_state:
+    st.session_state.preset_amt_val = ""
+if 'preset_curr_val' not in st.session_state:
+    st.session_state.preset_curr_val = "NT 新台幣"
 
 # 🌟 5. 可愛的提示視窗
 @st.dialog("🌸 系統訊息")
@@ -697,7 +713,7 @@ else:
 # 13. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：對齊右側欄位，切換自動清空與即時折算 ---
+# --- 分頁 1：獨立 HTML/JS 實現「打字瞬間 0 延遲即時變動」，常用選擇時自動寫入 ---
 with tab_input:
     reset_key = st.session_state.form_reset_key
 
@@ -713,27 +729,20 @@ with tab_input:
                 fav_options.append(lbl)
                 fav_items_map[lbl] = f_row
 
-    # 綁定元件 Key
-    key_item = f"input_item_{reset_key}"
-    key_cat = f"input_cat_{reset_key}"
-    key_amt = f"input_amt_{reset_key}"
-    key_curr = f"input_curr_{reset_key}"
-
-    # 當「常用」下拉選單切換時，處理自動帶入與清空
+    # 當「常用」下拉選單切換時，連動 State 帶入 JS 表單
     def on_fav_change():
         selected = st.session_state[f"fav_select_{reset_key}"]
         if selected != "不選擇（手動輸入）" and selected in fav_items_map:
             f = fav_items_map[selected]
-            st.session_state[key_item] = str(f["item"])
-            st.session_state[key_cat] = f["category"] if f["category"] in CATEGORIES else CATEGORIES[0]
-            st.session_state[key_amt] = str(f["original_amount"])
-            st.session_state[key_curr] = f["currency"] if f["currency"] in CURRENCY_MAP else "NT 新台幣"
+            st.session_state.preset_item_val = str(f["item"])
+            st.session_state.preset_cat_val = f["category"] if f["category"] in CATEGORIES else CATEGORIES[0]
+            st.session_state.preset_amt_val = str(f["original_amount"])
+            st.session_state.preset_curr_val = f["currency"] if f["currency"] in CURRENCY_MAP else "NT 新台幣"
         else:
-            # 切回「不選擇（手動輸入）」時，清空下方輸入框
-            st.session_state[key_item] = ""
-            st.session_state[key_cat] = None
-            st.session_state[key_amt] = ""
-            st.session_state[key_curr] = "NT 新台幣"
+            st.session_state.preset_item_val = ""
+            st.session_state.preset_cat_val = None
+            st.session_state.preset_amt_val = ""
+            st.session_state.preset_curr_val = "NT 新台幣"
 
     def on_change_main_input():
         st.session_state.show_popup_type = "switching"
@@ -745,7 +754,7 @@ with tab_input:
     with top_col2:
         st.selectbox("常用", fav_options, key=f"fav_select_{reset_key}", on_change=on_fav_change)
 
-    # 兩欄表單
+    # 日期與幣別選單
     input_col1, input_col2 = st.columns(2)
     with input_col1:
         input_date = st.date_input(
@@ -757,38 +766,71 @@ with tab_input:
             on_change=on_change_main_input
         )
     with input_col2:
-        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), key=key_curr, on_change=on_change_main_input)
+        curr_default_idx = list(CURRENCY_MAP.keys()).index(st.session_state.preset_curr_val) if st.session_state.preset_curr_val in CURRENCY_MAP else 0
+        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=curr_default_idx, key=f"curr_sel_{reset_key}", on_change=on_change_main_input)
 
     current_live_rate = fetch_rate_by_date(currency, input_date)
 
+    # 項目與分類輸入框
     f_col1, f_col2 = st.columns(2)
     with f_col1:
-        input_item = st.text_input("消費項目", placeholder="例如：韓國炸雞 🍗", key=key_item)
+        input_item = st.text_input("消費項目", value=st.session_state.preset_item_val, placeholder="例如：韓國炸雞 🍗", key=f"item_txt_{reset_key}")
     with f_col2:
-        input_category = st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=key_cat)
+        cat_default_idx = CATEGORIES.index(st.session_state.preset_cat_val) if st.session_state.preset_cat_val in CATEGORIES else None
+        input_category = st.selectbox("消費分類", CATEGORIES, index=cat_default_idx, placeholder="請選擇分類...", key=f"cat_sel_{reset_key}")
     
     st.markdown("**花費金額**")
+
+    # 🚀 前端原生 HTML/JS 獨立表單：0 延遲敲字瞬間變動預覽！
+    init_amt_val = st.session_state.preset_amt_val
+    native_form_html = f"""
+    <div style="font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif;">
+        <form id="expenseForm" action="" method="post" style="margin:0; padding:0;">
+            <input type="text" id="live_amount_input" name="submitted_amount" value="{init_amt_val}" placeholder="請輸入金額..." 
+                   style="width: 100%; padding: 12px 16px; font-size: 1rem; border-radius: 12px; border: 1px solid #dcdfe6; background-color: #ffffff; color: #5c4b51; outline: none; box-sizing: border-box;"
+                   oninput="calcRealtime(this.value)">
+            
+            <div style="margin-top: 12px; background-color: #e8f4f8; padding: 12px 16px; border-radius: 12px; color: #2c3e50; font-size: 0.95rem; font-weight: 500;">
+                💡 當前即時牌告匯率：<b>1 {currency.split()[1]} ≈ {current_live_rate} TWD</b> | 折算預覽：<b id="live_calc_preview" style="color: #0056b3; font-size: 1.1rem;">NT$ 0</b>
+            </div>
+
+            <button type="submit" id="nativeSubmitBtn" 
+                    style="width: 100%; margin-top: 16px; background-color: #e05263; color: white; border: none; padding: 12px 18px; border-radius: 14px; font-weight: 700; font-size: 1.05rem; cursor: pointer; box-shadow: 0 4px 12px rgba(224, 82, 99, 0.25);">
+                💖 儲存這筆紀錄
+            </button>
+        </form>
+    </div>
+    <script>
+        function calcRealtime(val) {{
+            var rate = {current_live_rate};
+            var cleanVal = val.replace(/[^0-9.]/g, '');
+            var num = parseFloat(cleanVal);
+            var result = 0;
+            if (!isNaN(num) && num > 0) {{
+                result = Math.round(num * rate);
+            }}
+            document.getElementById('live_calc_preview').innerText = 'NT$ ' + result.toLocaleString();
+        }}
+        // 頁面載入時自動執行一次計算
+        calcRealtime(document.getElementById('live_amount_input').value);
+    </script>
+    """
     
-    # 輸入框
-    input_amount_str = st.text_input("請輸入金額...", placeholder="請輸入金額...", key=key_amt, label_visibility="collapsed")
+    st.components.v1.html(native_form_html, height=185)
 
-    # ⚡ 即時動態計算折算金額 (優先抓取 session_state 或表單數值)
-    val_to_calc = st.session_state.get(key_amt, input_amount_str)
-    try:
-        input_amount = float(str(val_to_calc).strip()) if val_to_calc and str(val_to_calc).strip() else 0.0
-    except ValueError:
-        input_amount = 0.0
+    # 處理原生表單送出
+    submitted_amt_str = st.query_params.get("submitted_amount", "")
 
-    calc_twd = int(round(input_amount * current_live_rate)) if input_amount > 0 else 0
-    st.info(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
+    if submitted_amt_str:
+        st.query_params.clear()
+        try:
+            input_amount = float(submitted_amt_str)
+        except ValueError:
+            input_amount = 0.0
 
-    if st.button("💖 儲存這筆紀錄", use_container_width=True, type="primary", key=f"submit_{reset_key}"):
-        curr_item_val = st.session_state.get(key_item, input_item)
-        curr_cat_val = st.session_state.get(key_cat, input_category)
-
-        if not curr_item_val or not curr_item_val.strip():
+        if not input_item.strip():
             st.warning("⚠️ 請填寫消費項目名稱喔！")
-        elif curr_cat_val is None:
+        elif input_category is None:
             st.warning("⚠️ 請選擇消費分類喔！")
         elif input_amount <= 0:
             st.warning("⚠️ 請在上方的「花費金額」欄位輸入有效金額喔！")
@@ -806,8 +848,8 @@ with tab_input:
                     date_str=date_str,
                     year_num=year_num,
                     month_str=month_str,
-                    item=curr_item_val.strip(),
-                    category=curr_cat_val,
+                    item=input_item.strip(),
+                    category=input_category,
                     orig_amt=formatted_orig,
                     currency=currency,
                     rate=round(current_live_rate, 4),
@@ -818,8 +860,8 @@ with tab_input:
                     "date": date_str,
                     "year": year_num,
                     "month": month_str,
-                    "item": curr_item_val.strip(),
-                    "category": curr_cat_val,
+                    "item": input_item.strip(),
+                    "category": input_category,
                     "original_amount": formatted_orig,
                     "currency": currency,
                     "rate_used": round(current_live_rate, 4),
@@ -828,6 +870,10 @@ with tab_input:
                 }
                 st.session_state.guest_expenses.append(new_rec)
 
+            st.session_state.preset_item_val = ""
+            st.session_state.preset_cat_val = None
+            st.session_state.preset_amt_val = ""
+            st.session_state.preset_curr_val = "NT 新台幣"
             st.session_state.form_reset_key += 1
             st.session_state.show_popup_type = "saved"
             st.rerun()
@@ -862,7 +908,8 @@ with tab_input:
             else:
                 right_amount = f"{rec['currency']} {rec['original_amount']} (折算 NT {rec['amount_twd']:,}，匯率 {rec['rate_used']:.4f})"
             
-            list_col1, list_col2, list_col3, list_col4 = st.columns([5, 3.8, 1.1, 0.8])
+            # 🎯 明細對齊修復：使用 flex 置右與對齊，確保不換行爆開
+            list_col1, list_col2, list_col3, list_col4 = st.columns([4.5, 4.3, 1.1, 0.8])
             with list_col1:
                 st.write(f"**{left_info}**")
             with list_col2:
