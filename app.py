@@ -123,7 +123,7 @@ CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", 
 
 MACARON_COLORS = ['#ffb7c5', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#e0bbe4', '#fec8d8']
 
-# 🎯 雙重精準歷史匯率引擎
+# 🎯 超強穩定歷史匯率引擎
 @st.cache_data(ttl=3600)
 def fetch_rate_by_date(currency_label, target_date):
     if currency_label == "NT 新台幣":
@@ -133,11 +133,26 @@ def fetch_rate_by_date(currency_label, target_date):
     today = date.today()
     check_date = min(target_date, today)
     
-    headers = {"User-Agent": "Mozilla/5.0"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
-    # 1. 如果是近一年內的日期，先抓台灣銀行歷史 CSV
-    if (today - check_date).days <= 365:
+    # 1. 嘗試由 Frankfurter API (穩定官方主站) 抓取歷史當天匯率
+    if check_date <= today:
         for i in range(5):
+            curr_date = check_date - timedelta(days=i)
+            d_str = curr_date.strftime("%Y-%m-%d")
+            url = f"https://api.frankfurter.app/{d_str}?from={code}&to=TWD"
+            try:
+                res = requests.get(url, headers=headers, timeout=3)
+                if res.status_code == 200:
+                    data = res.json()
+                    if "rates" in data and "TWD" in data["rates"]:
+                        return round(float(data["rates"]["TWD"]), 4)
+            except Exception:
+                pass
+
+    # 2. 若為近一年日期，嘗試台灣銀行歷史 CSV
+    if (today - check_date).days <= 365:
+        for i in range(3):
             curr_date = check_date - timedelta(days=i)
             date_str = curr_date.strftime("%Y%m%d")
             url = f"https://rate.bot.com.tw/xrt/flcsv/0/day/{date_str}"
@@ -156,25 +171,10 @@ def fetch_rate_by_date(currency_label, target_date):
             except Exception:
                 pass
 
-    # 2. 如果超過 1 年或台銀未抓到，使用 Frankfurter API (ECB 歷史官方庫，支援多年歷史)
-    if check_date <= today:
-        for i in range(5):
-            curr_date = check_date - timedelta(days=i)
-            d_str = curr_date.strftime("%Y-%m-%d")
-            url = f"https://api.frankfurter.dev/v1/{d_str}?from={code}&to=TWD"
-            try:
-                res = requests.get(url, timeout=2)
-                if res.status_code == 200:
-                    data = res.json()
-                    if "rates" in data and "TWD" in data["rates"]:
-                        return round(float(data["rates"]["TWD"]), 4)
-            except Exception:
-                pass
-
-    # 3. 未來日期或 API 異常時使用即時匯率
+    # 3. 未來日期或歷史 API 皆無回應時，使用即時匯率
     try:
         url = f"https://open.er-api.com/v6/latest/{code}"
-        res = requests.get(url, timeout=2)
+        res = requests.get(url, headers=headers, timeout=2)
         if res.status_code == 200:
             data = res.json()
             if "rates" in data and "TWD" in data["rates"]:
@@ -293,9 +293,9 @@ def edit_expense_dialog(rec, rec_id, prefix):
     edit_currency = st.selectbox("修改幣別", list(CURRENCY_MAP.keys()), index=list(CURRENCY_MAP.keys()).index(rec["currency"]), key=f"c_{unique_key}")
     edit_amount_str = st.text_input("修改金額", value=str(rec["original_amount"]), key=f"a_{unique_key}")
     
-    # 預設抓取歷史匯率，並允許手動修改
+    # 重新獲取對應日期的歷史匯率
     fetched_rate = fetch_rate_by_date(edit_currency, edit_date)
-    rate_val_input = st.number_input("使用匯率 (可手動調整)", value=float(rec.get("rate_used", fetched_rate)), format="%.4f", key=f"r_{unique_key}")
+    rate_val_input = st.number_input("使用匯率 (可手動調整)", value=float(fetched_rate), format="%.4f", key=f"r_{unique_key}")
 
     st.markdown("---")
     btn_col1, btn_col2 = st.columns(2)
