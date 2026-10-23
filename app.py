@@ -786,7 +786,7 @@ else:
 # 13. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：常用選單置於「新增一筆消費」旁邊並預填表單 ---
+# --- 分頁 1：原生 Streamlit 表單 ---
 with tab_input:
     reset_key = st.session_state.form_reset_key
 
@@ -802,31 +802,12 @@ with tab_input:
                 fav_options.append(lbl)
                 fav_items_map[lbl] = f_row
 
-    # 📍 標題與「常用選單」放在同一列（並排）
-    header_col1, header_col2 = st.columns([1.2, 1])
-    with header_col1:
-        st.subheader("💮 新增一筆消費")
-    with header_col2:
-        selected_fav = st.selectbox("常用", fav_options, key=f"fav_select_{reset_key}", label_visibility="visible")
-
-    # 根據選取的常用項目，自動賦予預設填入值
-    if selected_fav != "不選擇常用（手動輸入）" and selected_fav in fav_items_map:
-        f_data = fav_items_map[selected_fav]
-        default_item_val = f_data["item"]
-        default_cat_val = f_data["category"] if f_data["category"] in CATEGORIES else None
-        default_amt_val = str(f_data["original_amount"])
-        default_curr_val = f_data["currency"] if f_data["currency"] in CURRENCY_MAP else "NT 新台幣"
-    else:
-        default_item_val = ""
-        default_cat_val = None
-        default_amt_val = ""
-        default_curr_val = "NT 新台幣"
-
     def on_change_main_input():
         st.session_state.show_popup_type = "switching"
 
-    input_col1, input_col2 = st.columns(2)
-    with input_col1:
+    # 🎯【修改點 1】「選擇日期」與「常用選單」在第一行併排
+    top_col1, top_col2 = st.columns(2)
+    with top_col1:
         input_date = st.date_input(
             "選擇日期 (年/月/日)", 
             datetime.now().date(), 
@@ -835,33 +816,53 @@ with tab_input:
             key=f"date_{reset_key}", 
             on_change=on_change_main_input
         )
-    with input_col2:
-        curr_idx = list(CURRENCY_MAP.keys()).index(default_curr_val) if default_curr_val in CURRENCY_MAP else 0
-        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=curr_idx, key=f"curr_{reset_key}", on_change=on_change_main_input)
+    with top_col2:
+        selected_fav = st.selectbox("常用選單", fav_options, key=f"fav_select_{reset_key}")
+
+    # 🎯【修改點 2】根據「常用選單」切換帶入，若為手動輸入，則 default_cat_index 設為 None (無預設)
+    if selected_fav != "不選擇常用（手動輸入）" and selected_fav in fav_items_map:
+        f_data = fav_items_map[selected_fav]
+        default_item_val = str(f_data["item"])
+        default_cat_val = f_data["category"] if f_data["category"] in CATEGORIES else None
+        default_cat_index = CATEGORIES.index(default_cat_val) if default_cat_val else None
+        default_amt_val = str(f_data["original_amount"])
+        default_curr_val = f_data["currency"] if f_data["currency"] in CURRENCY_MAP else "NT 新台幣"
+        default_curr_index = list(CURRENCY_MAP.keys()).index(default_curr_val)
+    else:
+        # 切回「手動輸入」自動清空
+        default_item_val = ""
+        default_cat_index = None  # 強制無預設值
+        default_amt_val = ""
+        default_curr_index = 0
+
+    # 第二行：消費項目與消費分類
+    f_col1, f_col2 = st.columns(2)
+    with f_col1:
+        input_item = st.text_input("消費項目", value=default_item_val, placeholder="例如：韓國炸雞 🍗", key=f"item_input_{reset_key}")
+    with f_col2:
+        # 🎯 分類 index 設為 default_cat_index，無選擇時預設為 None
+        input_category = st.selectbox("消費分類", CATEGORIES, index=default_cat_index, placeholder="請選擇分類...", key=f"cat_input_{reset_key}")
+
+    # 第三行：選擇幣別與花費金額
+    amt_col1, amt_col2 = st.columns(2)
+    with amt_col1:
+        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=default_curr_index, key=f"curr_input_{reset_key}", on_change=on_change_main_input)
+    with amt_col2:
+        input_amount_str = st.text_input("花費金額", value=default_amt_val, placeholder="請輸入金額...", key=f"amt_input_{reset_key}")
 
     current_live_rate = fetch_rate_by_date(currency, input_date)
 
-    f_col1, f_col2 = st.columns(2)
-    with f_col1:
-        input_item = st.text_input("消費項目", value=default_item_val, placeholder="例如：韓國炸雞 🍗", key=f"item_{reset_key}")
-    with f_col2:
-        cat_idx = CATEGORIES.index(default_cat_val) if default_cat_val in CATEGORIES else None
-        input_category = st.selectbox("消費分類", CATEGORIES, index=cat_idx, placeholder="請選擇分類...", key=f"cat_{reset_key}")
-    
-    st.markdown("**花費金額**")
-    input_amount_str = st.text_input("請輸入金額...", value=default_amt_val, placeholder="請輸入金額...", key=f"amt_str_{reset_key}", label_visibility="collapsed")
-
-    # 即時計算台幣
     try:
         input_amount = float(input_amount_str.strip()) if input_amount_str.strip() else 0.0
     except ValueError:
         input_amount = 0.0
 
     calc_twd = int(round(input_amount * current_live_rate)) if input_amount > 0 else 0
+    
     st.info(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
 
     if st.button("💖 儲存這筆紀錄", use_container_width=True, type="primary", key=f"submit_{reset_key}"):
-        if not input_item.strip():
+        if not input_item or not input_item.strip():
             st.warning("⚠️ 請填寫消費項目名稱喔！")
         elif input_category is None:
             st.warning("⚠️ 請選擇消費分類喔！")
@@ -937,16 +938,15 @@ with tab_input:
             else:
                 right_amount = f"{rec['currency']} {rec['original_amount']} (折算 NT {rec['amount_twd']:,}，匯率 {rec['rate_used']:.4f})"
             
-            list_col1, list_col2, list_col3, list_col4 = st.columns([5, 3.8, 1.1, 0.8])
+            list_col1, list_col2, list_col3, list_col4 = st.columns([3.5, 5.5, 1, 1])
             with list_col1:
-                st.write(f"**{left_info}**")
+                st.markdown(f'<div class="item-left-align">{left_info}</div>', unsafe_allow_html=True)
             with list_col2:
                 st.markdown(f'<div class="amount-right-align">{right_amount}</div>', unsafe_allow_html=True)
             with list_col3:
                 if st.button("✏️ 修改", key=f"btn_edit_{prefix}_{rec_id}", use_container_width=True):
                     edit_expense_dialog(rec, rec_id, prefix)
             with list_col4:
-                # ⭐️ 小型化星星按鈕
                 if st.button(star_icon, key=f"btn_fav_{prefix}_{rec_id}", use_container_width=True, help="點擊設定/取消為常用項目"):
                     if st.session_state.logged_in:
                         new_st = toggle_favorite_db(rec_id, is_fav)
