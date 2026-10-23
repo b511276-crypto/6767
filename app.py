@@ -351,7 +351,7 @@ def cute_status_dialog(msg_type):
         """, unsafe_allow_html=True)
         progress_bar = st.progress(0)
         for i in range(100):
-            time.sleep(0.02) # 停留 2 秒動態
+            time.sleep(0.015) # 停留約 1.5 秒
             progress_bar.progress(i + 1)
             
     elif msg_type == "saved":
@@ -377,7 +377,6 @@ def cute_status_dialog(msg_type):
     st.session_state.show_popup_type = None
     st.rerun()
 
-# 如果有觸發彈窗，即刻展示
 if st.session_state.show_popup_type:
     cute_status_dialog(st.session_state.show_popup_type)
 
@@ -386,20 +385,19 @@ if st.session_state.show_popup_type:
 def edit_expense_dialog(rec, rec_id, prefix):
     unique_key = f"dlg_{prefix}_{rec_id}"
     
-    edit_date = st.date_input("修改日期", datetime.strptime(rec["date"], "%Y-%m-%d"), key=f"d_{unique_key}")
+    def on_change_popup():
+        st.session_state.show_popup_type = "switching"
+
+    edit_date = st.date_input("修改日期", datetime.strptime(rec["date"], "%Y-%m-%d"), key=f"d_{unique_key}", on_change=on_change_popup)
     edit_item = st.text_input("修改項目名稱", value=rec["item"], key=f"i_{unique_key}")
     edit_category = st.selectbox("修改分類", CATEGORIES, index=CATEGORIES.index(rec["category"]), key=f"cat_{unique_key}")
     
-    # 切換幣別觸發動態切換視窗
-    def on_curr_change():
-        st.session_state.show_popup_type = "switching"
-
     edit_currency = st.selectbox(
         "修改幣別", 
         list(CURRENCY_MAP.keys()), 
         index=list(CURRENCY_MAP.keys()).index(rec["currency"]), 
         key=f"c_{unique_key}",
-        on_change=on_curr_change
+        on_change=on_change_popup
     )
     
     edit_amount_str = st.text_input("修改金額", value=str(rec["original_amount"]), key=f"a_{unique_key}")
@@ -616,21 +614,29 @@ with tab_input:
     st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
     
-    def on_main_curr_change():
+    def trigger_switching_popup():
         st.session_state.show_popup_type = "switching"
 
+    # 💡 移出表單外的即時互動元件
+    input_col1, input_col2 = st.columns(2)
+    with input_col1:
+        input_date = st.date_input("選擇日期 (年/月/日)", datetime.now().date(), key=f"date_{reset_key}", on_change=trigger_switching_popup)
+    with input_col2:
+        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=0, key=f"curr_{reset_key}", on_change=trigger_switching_popup)
+
+    # 動態計算並呈現即時匯率
+    current_live_rate = fetch_rate_by_date(currency, input_date)
+    st.caption(f"🌐 自動獲取歷史/即時匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD**")
+
     with st.form("add_expense_form", clear_on_submit=False):
-        col1, col2 = st.columns(2)
-        with col1:
-            input_date = st.date_input("選擇日期 (年/月/日)", datetime.now().date(), key=f"date_{reset_key}")
+        f_col1, f_col2 = st.columns(2)
+        with f_col1:
             input_item = st.text_input("消費項目", placeholder="例如：日本拉麵 🍜", key=f"item_{reset_key}")
-            currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=0, key=f"curr_{reset_key}")
-            
-        with col2:
+        with f_col2:
             input_category = st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=f"cat_{reset_key}")
-            input_amount_str = st.text_input("花費金額", placeholder="請輸入金額...", key=f"amt_{reset_key}")
         
-        submit_btn = st.form_submit_button("💖 儲存這筆紀錄")
+        input_amount_str = st.text_input("花費金額", placeholder="請輸入金額...", key=f"amt_{reset_key}")
+        submit_btn = st.form_submit_button("💖 儲存這筆紀錄", use_container_width=True)
 
         if submit_btn:
             try:
@@ -645,13 +651,11 @@ with tab_input:
             elif input_amount is None or input_amount <= 0:
                 st.warning("⚠️ 請輸入有效的數字金額喔！")
             else:
-                rate = fetch_rate_by_date(currency, input_date)
-                
                 date_str = input_date.strftime("%Y-%m-%d")
                 year_num = input_date.year
                 month_str = input_date.strftime("%Y-%m")
                 
-                amount_twd_val = int(round(input_amount * rate))
+                amount_twd_val = int(round(input_amount * current_live_rate))
                 formatted_orig = str(int(input_amount)) if input_amount.is_integer() else str(input_amount)
                 
                 if st.session_state.logged_in:
@@ -664,7 +668,7 @@ with tab_input:
                         category=input_category,
                         orig_amt=formatted_orig,
                         currency=currency,
-                        rate=round(rate, 4),
+                        rate=round(current_live_rate, 4),
                         amt_twd=amount_twd_val
                     )
                 else:
@@ -676,7 +680,7 @@ with tab_input:
                         "category": input_category,
                         "original_amount": formatted_orig,
                         "currency": currency,
-                        "rate_used": round(rate, 4),
+                        "rate_used": round(current_live_rate, 4),
                         "amount_twd": amount_twd_val
                     }
                     st.session_state.guest_expenses.append(new_rec)
@@ -721,7 +725,7 @@ with tab_input:
             with list_col3:
                 if st.button("✏️ 修改", key=f"btn_edit_{prefix}_{rec_id}", use_container_width=True):
                     edit_expense_dialog(rec, rec_id, prefix)
-            st.markdown("<hr style='margin: 0.2rem 0; border: none; border-top: 1px dashed #ffd1dc;'>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin: 0.3rem 0; border: none; border-top: 1px dashed #ffd1dc;'>", unsafe_allow_html=True)
             
         if len(expenses_list) > 10:
             st.caption("💡 僅顯示最近 10 筆紀錄，完整的歷史資料請切換至「月度」或「年度」分頁查看喔！")
