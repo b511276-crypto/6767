@@ -9,6 +9,7 @@ import base64
 from PIL import Image, ImageDraw
 import io
 import plotly.express as px
+from streamlit_cropper import st_cropper  # 引入專業裁切元件
 
 # 1. 頁面基本設定
 st.set_page_config(page_title="記帳本", layout="wide")
@@ -165,7 +166,6 @@ CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", 
 
 MACARON_COLORS = ['#ffb7c5', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#e0bbe4', '#fec8d8']
 
-# ⚡ 精準匯率檢索
 def fetch_rate_by_date(currency_label, target_date):
     if currency_label == "NT 新台幣":
         return 1.0
@@ -377,45 +377,51 @@ def cute_status_dialog(msg_type):
 if st.session_state.show_popup_type:
     cute_status_dialog(st.session_state.show_popup_type)
 
-# ✂️ 6. 彈出式「圖片上傳與自動圓形裁切」小視窗
-@st.dialog("🖼️ 上傳與裁切個人頭像")
+# ✂️ 6. 彈出式「自由選取範圍」裁切視窗（使用 streamlit-cropper）
+@st.dialog("✂️ 選擇圖片與裁切範圍")
 def avatar_upload_dialog():
-    st.markdown("請選擇一張電腦中的圖片，系統會**自動進行圓形縮放裁切**並設定為個人頭像：")
-    uploaded_file = st.file_uploader("選擇圖片檔 (JPG, PNG, WEBP)", type=["jpg", "jpeg", "png", "webp"], key="dlg_avatar_uploader")
+    st.markdown("請選擇一張電腦中的圖片，並在畫面上**自由拖拉/縮放裁切框**：")
+    uploaded_file = st.file_uploader("選擇圖片檔 (JPG, PNG, WEBP)", type=["jpg", "jpeg", "png", "webp"], key="dlg_cropper_uploader")
     
     if uploaded_file is not None:
         try:
-            image = Image.open(uploaded_file).convert("RGBA")
-            min_dim = min(image.size)
-            left = (image.width - min_dim) / 2
-            top = (image.height - min_dim) / 2
-            right = (image.width + min_dim) / 2
-            bottom = (image.height + min_dim) / 2
-            image = image.crop((left, top, right, bottom))
-            image = image.resize((200, 200), Image.LANCZOS)
+            img = Image.open(uploaded_file).convert("RGBA")
             
-            mask = Image.new('L', (200, 200), 0)
-            draw = ImageDraw.Draw(mask)
-            draw.ellipse((0, 0, 200, 200), fill=255)
+            # 使用原生互動式裁切器（強烈定位 1:1 正方形比例）
+            cropped_img = st_cropper(
+                img,
+                realtime_update=True,
+                box_color="#ffb7c5",
+                aspect_ratio=(1, 1),
+                key="cropper_widget"
+            )
             
-            output = Image.new('RGBA', (200, 200), (0, 0, 0, 0))
-            output.paste(image, (0, 0), mask)
-            
-            buffered = io.BytesIO()
-            output.save(buffered, format="PNG")
-            img_b64 = "data:image/png;base64," + base64.b64encode(buffered.getvalue()).decode()
-            
-            st.image(output, caption="✂️ 裁切後預覽", width=120)
-            
-            if st.button("💖 確定套用此頭像", type="primary", use_container_width=True):
-                if st.session_state.logged_in:
-                    update_user_avatar(st.session_state.username, "img", img_b64)
-                    st.session_state.avatar_type = "img"
-                    st.session_state.avatar_data = img_b64
-                    st.toast("🎉 頭像更新成功！", icon="✨")
-                    st.rerun()
+            if cropped_img is not None:
+                # 裁切圖片並加工成圓形圖片
+                resized_img = cropped_img.resize((200, 200), Image.LANCZOS)
+                mask = Image.new('L', (200, 200), 0)
+                draw = ImageDraw.Draw(mask)
+                draw.ellipse((0, 0, 200, 200), fill=255)
+                
+                final_output = Image.new('RGBA', (200, 200), (0, 0, 0, 0))
+                final_output.paste(resized_img, (0, 0), mask)
+                
+                st.markdown("##### ✂️ 即時預覽結果：")
+                st.image(final_output, width=110)
+                
+                buffered = io.BytesIO()
+                final_output.save(buffered, format="PNG")
+                img_b64 = "data:image/png;base64," + base64.b64encode(buffered.getvalue()).decode()
+                
+                if st.button("💖 確定套用裁切圖片為頭像", type="primary", use_container_width=True):
+                    if st.session_state.logged_in:
+                        update_user_avatar(st.session_state.username, "img", img_b64)
+                        st.session_state.avatar_type = "img"
+                        st.session_state.avatar_data = img_b64
+                        st.toast("🎉 頭像更新成功！", icon="✨")
+                        st.rerun()
         except Exception as e:
-            st.error("⚠️ 圖片解析失敗，請試試其他圖片檔喔！")
+            st.error("⚠️ 圖片解析失敗，請試試其他圖片檔案喔！")
 
 # 7. 彈出式修改記帳小視窗
 @st.dialog("✏️ 修改記帳紀錄")
@@ -728,7 +734,7 @@ with tab_input:
     def on_change_main_input():
         st.session_state.show_popup_type = "switching"
 
-    # 📍 頂部對齊：左邊放「新增一筆消費」，右邊放「常用」下拉選單（完美與右欄對齊）
+    # 📍 頂部對齊：左邊放「新增一筆消費」，右邊放「常用」下拉選單
     top_col1, top_col2 = st.columns(2)
     with top_col1:
         st.subheader("💮 新增一筆消費")
