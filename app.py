@@ -4,6 +4,7 @@ from datetime import datetime, date, timedelta
 import requests
 import sqlite3
 import hashlib
+import time
 import plotly.express as px
 
 # 1. 頁面基本設定
@@ -119,7 +120,7 @@ CURRENCY_MAP = {
     "£ 英鎊": {"code": "GBP", "fallback": 42.00}
 }
 
-# 📊 【2年 ~ 10年】：比率網 (RatesViewer) 近十年歷史數據庫
+# 📊 2年 ~ 10年比率網歷史數據庫
 RATESVIEWER_10Y_DB = {
     2017: {"USD": 30.43, "JPY": 0.2710, "CNY": 4.500, "KRW": 0.0270, "EUR": 34.35, "GBP": 39.20},
     2018: {"USD": 30.15, "JPY": 0.2730, "CNY": 4.560, "KRW": 0.0270, "EUR": 35.60, "GBP": 40.20},
@@ -141,7 +142,7 @@ RATESVIEWER_10Y_DB = {
     2025: {"USD": 32.50, "JPY": 0.2120, "CNY": 4.480, "KRW": 0.0230, "EUR": 35.20, "GBP": 41.80}
 }
 
-# 🏛️ 【10年以上】：中央銀行外匯長期歷史資訊庫
+# 🏛️ 10年以上中央銀行外匯長期歷史資訊庫
 CBC_LONGTERM_DB = {
     2016: {"USD": 32.26, "JPY": 0.2970, "CNY": 4.850, "KRW": 0.0270, "EUR": 35.70, "GBP": 43.60},
     2015: {"USD": 31.89, "JPY": 0.2640, "CNY": 5.080, "KRW": 0.0280, "EUR": 35.30, "GBP": 48.80},
@@ -156,7 +157,7 @@ CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", 
 
 MACARON_COLORS = ['#ffb7c5', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#e0bbe4', '#fec8d8']
 
-# 🎯 三層精準匯率檢索引擎 (1年內台銀即時/歷史CSV -> 2~10年比率網 -> 10年以上央行)
+# 🎯 三層精準匯率檢索引擎
 def fetch_rate_by_date(currency_label, target_date):
     if currency_label == "NT 新台幣":
         return 1.0
@@ -168,37 +169,34 @@ def fetch_rate_by_date(currency_label, target_date):
     target_year = check_date.year
     target_month_str = check_date.strftime("%Y-%m")
 
-    # --- 1. 一年以內 (<= 365天) ➔ 抓取台灣銀行 (BOT) 牌告 CSV ---
+    # 1. 1年以內 ➔ 台灣銀行 (BOT) CSV
     if days_diff <= 365:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        
-        # 如果是「今天」，優先試抓台灣銀行最新即時牌告 CSV
         urls_to_try = []
         if check_date == today:
             urls_to_try.append("https://rate.bot.com.tw/xrt/flcsv/0/day")
             
-        # 依次嘗試指定日期往前的天數 (防假日開盤問題)
         for i in range(5):
             curr_d = check_date - timedelta(days=i)
             urls_to_try.append(f"https://rate.bot.com.tw/xrt/flcsv/0/day/{curr_d.strftime('%Y%m%d')}")
             
         for url in urls_to_try:
             try:
-                res = requests.get(url, headers=headers, timeout=2.0)
+                res = requests.get(url, headers=headers, timeout=1.8)
                 if res.status_code == 200 and ("牌告匯率" in res.text or "幣別" in res.text):
                     lines = res.text.splitlines()
                     for line in lines:
                         parts = line.split(',')
                         if len(parts) > 12 and code in parts[0]:
-                            spot_sell = parts[12].strip()  # 即期賣出
-                            cash_sell = parts[13].strip()  # 現金賣出
+                            spot_sell = parts[12].strip()
+                            cash_sell = parts[13].strip()
                             rate_val = spot_sell if spot_sell and spot_sell != '-' else cash_sell
                             if rate_val and rate_val != '-':
                                 return round(float(rate_val), 4)
             except Exception:
                 pass
 
-    # --- 2. 2 年至 10 年 ➔ 比率網近十年歷史外匯數據 ---
+    # 2. 2~10 年 ➔ 比率網歷史外匯數據
     if target_year in RATESVIEWER_10Y_DB:
         year_db = RATESVIEWER_10Y_DB[target_year]
         if "monthly" in year_db and target_month_str in year_db["monthly"]:
@@ -208,11 +206,10 @@ def fetch_rate_by_date(currency_label, target_date):
         if code in year_db:
             return year_db[code]
 
-    # --- 3. 10 年以上 ➔ 中央銀行外匯長期歷史資訊庫 ---
+    # 3. 10 年以上 ➔ 中央銀行外匯長期歷史資訊庫
     if target_year in CBC_LONGTERM_DB and code in CBC_LONGTERM_DB[target_year]:
         return CBC_LONGTERM_DB[target_year][code]
 
-    # 備援 API / 預設保底
     try:
         url = f"https://open.er-api.com/v6/latest/{code}"
         res = requests.get(url, timeout=1.5)
@@ -270,6 +267,22 @@ st.markdown("""
         font-weight: 700; 
         text-align: center;
     }
+
+    .popup-box {
+        text-align: center;
+        padding: 1.5rem 1rem;
+    }
+    
+    .popup-icon {
+        font-size: 3.2rem;
+        margin-bottom: 0.8rem;
+        animation: pulse 1.2s infinite alternate;
+    }
+
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        100% { transform: scale(1.15); }
+    }
     
     .sidebar-user-card {
         background-color: #ffffff;
@@ -322,8 +335,53 @@ if 'form_reset_key' not in st.session_state:
     st.session_state.form_reset_key = 0
 if 'confirm_delete_account' not in st.session_state:
     st.session_state.confirm_delete_account = False
+if 'show_popup_type' not in st.session_state:
+    st.session_state.show_popup_type = None
 
-# 5. 彈出式修改小視窗 (st.dialog)
+# 🌟 5. 可愛的動態提示小視窗 (st.dialog)
+@st.dialog("🌸 系統訊息")
+def cute_status_dialog(msg_type):
+    if msg_type == "switching":
+        st.markdown("""
+        <div class="popup-box">
+            <div class="popup-icon">🔄✨</div>
+            <h3 style="color: #ff6b81; font-weight: 800;">切換中，請稍後...</h3>
+            <p style="color: #8b7d83; font-weight: 700;">正在精準獲取對應日期的歷史匯率數據喔！</p>
+        </div>
+        """, unsafe_allow_html=True)
+        progress_bar = st.progress(0)
+        for i in range(100):
+            time.sleep(0.02) # 停留 2 秒動態
+            progress_bar.progress(i + 1)
+            
+    elif msg_type == "saved":
+        st.markdown("""
+        <div class="popup-box">
+            <div class="popup-icon">🎉💖</div>
+            <h3 style="color: #ff6b81; font-weight: 800;">資料儲存成功！</h3>
+            <p style="color: #8b7d83; font-weight: 700;">已經為你完美紀錄這筆生活消費囉！</p>
+        </div>
+        """, unsafe_allow_html=True)
+        time.sleep(2.0)
+        
+    elif msg_type == "updated":
+        st.markdown("""
+        <div class="popup-box">
+            <div class="popup-icon">✏️🌸</div>
+            <h3 style="color: #ff6b81; font-weight: 800;">修改完成！</h3>
+            <p style="color: #8b7d83; font-weight: 700;">消費紀錄已經更新完畢囉！</p>
+        </div>
+        """, unsafe_allow_html=True)
+        time.sleep(2.0)
+
+    st.session_state.show_popup_type = None
+    st.rerun()
+
+# 如果有觸發彈窗，即刻展示
+if st.session_state.show_popup_type:
+    cute_status_dialog(st.session_state.show_popup_type)
+
+# 6. 彈出式修改小視窗
 @st.dialog("✏️ 修改記帳紀錄")
 def edit_expense_dialog(rec, rec_id, prefix):
     unique_key = f"dlg_{prefix}_{rec_id}"
@@ -331,7 +389,19 @@ def edit_expense_dialog(rec, rec_id, prefix):
     edit_date = st.date_input("修改日期", datetime.strptime(rec["date"], "%Y-%m-%d"), key=f"d_{unique_key}")
     edit_item = st.text_input("修改項目名稱", value=rec["item"], key=f"i_{unique_key}")
     edit_category = st.selectbox("修改分類", CATEGORIES, index=CATEGORIES.index(rec["category"]), key=f"cat_{unique_key}")
-    edit_currency = st.selectbox("修改幣別", list(CURRENCY_MAP.keys()), index=list(CURRENCY_MAP.keys()).index(rec["currency"]), key=f"c_{unique_key}")
+    
+    # 切換幣別觸發動態切換視窗
+    def on_curr_change():
+        st.session_state.show_popup_type = "switching"
+
+    edit_currency = st.selectbox(
+        "修改幣別", 
+        list(CURRENCY_MAP.keys()), 
+        index=list(CURRENCY_MAP.keys()).index(rec["currency"]), 
+        key=f"c_{unique_key}",
+        on_change=on_curr_change
+    )
+    
     edit_amount_str = st.text_input("修改金額", value=str(rec["original_amount"]), key=f"a_{unique_key}")
     
     fetched_rate = fetch_rate_by_date(edit_currency, edit_date)
@@ -379,7 +449,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
                         "rate_used": round(rate_val_input, 4),
                         "amount_twd": amount_twd_val
                     }
-                st.toast("✅ 資料修改成功！", icon="✨")
+                st.session_state.show_popup_type = "updated"
                 st.rerun()
 
     with btn_col2:
@@ -391,7 +461,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
             st.toast("🗑️ 已成功刪除該筆資料！", icon="✨")
             st.rerun()
 
-# 6. 通用圖表繪製函式
+# 7. 通用圖表繪製函式
 def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=False):
     chart_df = df_data.copy()
     
@@ -434,7 +504,7 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
     )
     st.plotly_chart(fig, use_container_width=True, key=key_name)
 
-# 7. 側邊欄：登入與註冊系統
+# 8. 側邊欄：登入與註冊系統
 with st.sidebar:
     st.title("🌸 帳號管理")
     
@@ -502,7 +572,7 @@ with st.sidebar:
                     st.toast("🗑️ 帳號及相關資料已成功註銷！", icon="✨")
                     st.rerun()
 
-# 8. 主頁面 Header
+# 9. 主頁面 Header
 st.markdown("""
 <div class="cute-header">
     <h1>🌸生活記帳本🌸</h1>
@@ -510,7 +580,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# 9. 資料同步提醒
+# 10. 資料同步提醒
 if st.session_state.logged_in and len(st.session_state.guest_expenses) > 0:
     st.info(f"💡 系統偵測到你在未登入時共有 **{len(st.session_state.guest_expenses)}** 筆記帳紀錄！")
     if st.button("📥 一鍵將舊紀錄匯入我的帳號", use_container_width=True):
@@ -531,14 +601,14 @@ if st.session_state.logged_in and len(st.session_state.guest_expenses) > 0:
         st.toast("🎉 舊紀錄已完美匯入你的個人帳號中！", icon="✨")
         st.rerun()
 
-# 10. 載入當前資料
+# 11. 載入當前資料
 if st.session_state.logged_in:
     current_user = st.session_state.username
     df = load_user_expenses(current_user)
 else:
     df = pd.DataFrame(st.session_state.guest_expenses)
 
-# 11. 記帳與分析主介面
+# 12. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
 # --- 分頁 1：逐筆輸入與明細 (僅顯示 10 筆) ---
@@ -546,6 +616,9 @@ with tab_input:
     st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
     
+    def on_main_curr_change():
+        st.session_state.show_popup_type = "switching"
+
     with st.form("add_expense_form", clear_on_submit=False):
         col1, col2 = st.columns(2)
         with col1:
@@ -609,7 +682,7 @@ with tab_input:
                     st.session_state.guest_expenses.append(new_rec)
 
                 st.session_state.form_reset_key += 1
-                st.toast(f"🎉 儲存成功！【{input_category}】{input_item} - {currency} {formatted_orig}", icon="✨")
+                st.session_state.show_popup_type = "saved"
                 st.rerun()
 
     st.markdown("---")
@@ -648,7 +721,7 @@ with tab_input:
             with list_col3:
                 if st.button("✏️ 修改", key=f"btn_edit_{prefix}_{rec_id}", use_container_width=True):
                     edit_expense_dialog(rec, rec_id, prefix)
-            st.markdown("<hr style='margin: 0.3rem 0; border: none; border-top: 1px dashed #ffd1dc;'>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin: 0.2rem 0; border: none; border-top: 1px dashed #ffd1dc;'>", unsafe_allow_html=True)
             
         if len(expenses_list) > 10:
             st.caption("💡 僅顯示最近 10 筆紀錄，完整的歷史資料請切換至「月度」或「年度」分頁查看喔！")
