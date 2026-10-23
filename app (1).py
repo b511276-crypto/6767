@@ -301,7 +301,32 @@ def edit_expense_dialog(rec, rec_id, prefix):
             st.toast("🗑️ 已成功刪除該筆資料！", icon="✨")
             st.rerun()
 
-# 6. 側邊欄：登入與註冊系統
+# 6. 通用圖表繪製函式（無圖表標題）
+def render_custom_chart(df_data, x_col, y_col, chart_type, key_name):
+    if chart_type == "🥧 圓餅圖 (Pie)":
+        fig = px.pie(df_data, values=y_col, names=x_col, hole=0, color_discrete_sequence=MACARON_COLORS)
+        fig.update_traces(textposition='inside', textinfo='percent+label')
+    elif chart_type == "🍩 環形圖 (Donut)":
+        fig = px.pie(df_data, values=y_col, names=x_col, hole=0.45, color_discrete_sequence=MACARON_COLORS)
+        fig.update_traces(textposition='inside', textinfo='percent+label')
+    elif chart_type == "📊 柱狀圖 (Bar)":
+        fig = px.bar(df_data, x=x_col, y=y_col, color=x_col, color_discrete_sequence=MACARON_COLORS, text_auto=',d')
+        fig.update_layout(showlegend=False, xaxis_title="", yaxis_title="金額 (NT$)")
+    elif chart_type == "📈 折線圖 (Line)":
+        fig = px.line(df_data, x=x_col, y=y_col, markers=True, color_discrete_sequence=['#ff6b81'])
+        fig.update_traces(line=dict(width=3), marker=dict(size=8))
+        fig.update_layout(xaxis_title="", yaxis_title="金額 (NT$)")
+    
+    fig.update_layout(
+        title="", # 無標題名稱
+        margin=dict(t=10, b=20, l=20, r=20),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(family="Zen Maru Gothic, sans-serif", size=14, color="#5c4b51")
+    )
+    st.plotly_chart(fig, use_container_width=True, key=key_name)
+
+# 7. 側邊欄：登入與註冊系統
 with st.sidebar:
     st.title("🌸 帳號管理")
     
@@ -369,7 +394,7 @@ with st.sidebar:
                     st.toast("🗑️ 帳號及相關資料已成功註銷！", icon="✨")
                     st.rerun()
 
-# 7. 主頁面 Header
+# 8. 主頁面 Header
 st.markdown("""
 <div class="cute-header">
     <h1>🌸生活記帳本🌸</h1>
@@ -377,7 +402,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# 8. 資料同步提醒
+# 9. 資料同步提醒
 if st.session_state.logged_in and len(st.session_state.guest_expenses) > 0:
     st.info(f"💡 系統偵測到你在未登入時共有 **{len(st.session_state.guest_expenses)}** 筆記帳紀錄！")
     if st.button("📥 一鍵將舊紀錄匯入我的帳號", use_container_width=True):
@@ -398,17 +423,17 @@ if st.session_state.logged_in and len(st.session_state.guest_expenses) > 0:
         st.toast("🎉 舊紀錄已完美匯入你的個人帳號中！", icon="✨")
         st.rerun()
 
-# 9. 載入當前資料
+# 10. 載入當前資料
 if st.session_state.logged_in:
     current_user = st.session_state.username
     df = load_user_expenses(current_user)
 else:
     df = pd.DataFrame(st.session_state.guest_expenses)
 
-# 10. 記帳與分析主介面
+# 11. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：逐筆輸入與明細 ---
+# --- 分頁 1：逐筆輸入與明細 (僅顯示 10 筆) ---
 with tab_input:
     st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
@@ -481,7 +506,7 @@ with tab_input:
                 st.rerun()
 
     st.markdown("---")
-    st.subheader("📜 最近的記帳明細")
+    st.subheader("📜 最近的記帳明細 (最新 10 筆)")
     if not df.empty:
         filter_col1, filter_col2 = st.columns(2)
         with filter_col1:
@@ -496,9 +521,11 @@ with tab_input:
         is_asc = (sort_order == "📅 最舊日期在前")
         expenses_list.sort(key=lambda x: x["date"], reverse=not is_asc)
         
+        # 截取前 10 筆顯示
+        display_list = expenses_list[:10]
         prefix = "db" if st.session_state.logged_in else "guest"
         
-        for idx, rec in enumerate(expenses_list):
+        for idx, rec in enumerate(display_list):
             rec_id = rec.get("id", idx)
             
             left_info = f"🗓️ {rec['date']} | {rec['category']} | {rec['item']}"
@@ -516,6 +543,9 @@ with tab_input:
                 if st.button("✏️ 修改", key=f"btn_edit_{prefix}_{rec_id}", use_container_width=True):
                     edit_expense_dialog(rec, rec_id, prefix)
             st.markdown("<hr style='margin: 0.3rem 0; border: none; border-top: 1px dashed #ffd1dc;'>", unsafe_allow_html=True)
+            
+        if len(expenses_list) > 10:
+            st.caption("💡 僅顯示最近 10 筆紀錄，完整的歷史資料請切換至「月度」或「年度」分頁查看喔！")
     else:
         st.info("目前還沒有任何記帳紀錄喔，快新增第一筆吧！")
 
@@ -523,36 +553,20 @@ with tab_input:
 with tab_month:
     if not df.empty:
         all_months = sorted(df['month'].unique(), reverse=True)
-        selected_month = st.selectbox("🗓️ 請選擇月份：", all_months, key="select_month_key")
+        
+        m_sel_col1, m_sel_col2 = st.columns(2)
+        with m_sel_col1:
+            selected_month = st.selectbox("🗓️ 請選擇月份：", all_months, key="select_month_key")
+        with m_sel_col2:
+            m_chart_type = st.selectbox("📊 選擇圖表類型：", ["🍩 環形圖 (Donut)", "🥧 圓餅圖 (Pie)", "📊 柱狀圖 (Bar)"], key="m_chart_type")
         
         m_df = df[df['month'] == selected_month]
         month_total = m_df['amount_twd'].sum()
         
         st.markdown(f'<div class="stat-card"><div class="stat-label">🌸 {selected_month} 當月累積總消費 (已折算台幣)</div><div class="stat-value">NT$ {month_total:,}</div></div>', unsafe_allow_html=True)
         
-        st.markdown("##### 🍰 本月分類消費占比 (馬卡龍圓餅圖)")
         cat_m = m_df.groupby('category')['amount_twd'].sum().reset_index()
-        
-        fig_m = px.pie(
-            cat_m, 
-            values='amount_twd', 
-            names='category',
-            hole=0.45,
-            color_discrete_sequence=MACARON_COLORS
-        )
-        fig_m.update_traces(
-            textposition='inside', 
-            textinfo='percent+label',
-            hovertemplate="<b>%{label}</b><br>金額: NT$ %{value:,}<br>佔比: %{percent}"
-        )
-        fig_m.update_layout(
-            showlegend=True,
-            margin=dict(t=20, b=20, l=20, r=20),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font=dict(family="Zen Maru Gothic, sans-serif", size=14, color="#5c4b51")
-        )
-        st.plotly_chart(fig_m, use_container_width=True, key="fig_month_pie")
+        render_custom_chart(cat_m, 'category', 'amount_twd', m_chart_type, "fig_month")
 
         st.markdown("---")
         st.markdown("##### 📈 本月消費列表明細")
@@ -598,36 +612,29 @@ with tab_month:
 with tab_year:
     if not df.empty:
         all_years = sorted(df['year'].unique(), reverse=True)
-        selected_year = st.selectbox("🎆 請選擇年份：", all_years, key="select_year_key")
+        
+        y_sel_col1, y_sel_col2, y_sel_col3 = st.columns(3)
+        with y_sel_col1:
+            selected_year = st.selectbox("🎆 請選擇年份：", all_years, key="select_year_key")
+        with y_sel_col2:
+            y_view_mode = st.selectbox("🔍 選擇分析維度：", ["🏷️ 類別消費狀況", "🗓️ 各月份消費情況"], key="y_view_mode")
+        with y_sel_col3:
+            if y_view_mode == "🗓️ 各月份消費情況":
+                y_chart_type = st.selectbox("📊 選擇圖表類型：", ["📊 柱狀圖 (Bar)", "📈 折線圖 (Line)"], key="y_chart_type")
+            else:
+                y_chart_type = st.selectbox("📊 選擇圖表類型：", ["🍩 環形圖 (Donut)", "🥧 圓餅圖 (Pie)", "📊 柱狀圖 (Bar)"], key="y_chart_type")
         
         y_df = df[df['year'] == selected_year]
         year_total = y_df['amount_twd'].sum()
         
         st.markdown(f'<div class="stat-card" style="border-color: #a8e6cf;"><div class="stat-label" style="color: #4e8d7c;">🌟 {selected_year} 全年累積總消費 (已折算台幣)</div><div class="stat-value" style="color: #42b883;">NT$ {year_total:,}</div></div>', unsafe_allow_html=True)
         
-        st.markdown("##### 📊 全年分類消費占比 (馬卡龍圓餅圖)")
-        cat_y = y_df.groupby('category')['amount_twd'].sum().reset_index()
-        
-        fig_y = px.pie(
-            cat_y, 
-            values='amount_twd', 
-            names='category',
-            hole=0.45,
-            color_discrete_sequence=MACARON_COLORS
-        )
-        fig_y.update_traces(
-            textposition='inside', 
-            textinfo='percent+label',
-            hovertemplate="<b>%{label}</b><br>金額: NT$ %{value:,}<br>佔比: %{percent}"
-        )
-        fig_y.update_layout(
-            showlegend=True,
-            margin=dict(t=20, b=20, l=20, r=20),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font=dict(family="Zen Maru Gothic, sans-serif", size=14, color="#5c4b51")
-        )
-        st.plotly_chart(fig_y, use_container_width=True, key="fig_year_pie")
+        if y_view_mode == "🗓️ 各月份消費情況":
+            data_y = y_df.groupby('month')['amount_twd'].sum().reset_index().sort_values(by='month')
+            render_custom_chart(data_y, 'month', 'amount_twd', y_chart_type, "fig_year_m")
+        else:
+            data_y = y_df.groupby('category')['amount_twd'].sum().reset_index()
+            render_custom_chart(data_y, 'category', 'amount_twd', y_chart_type, "fig_year_c")
 
         st.markdown("---")
         st.markdown("##### 📈 全年消費列表明細")
