@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import requests
 import sqlite3
 import hashlib
@@ -109,10 +109,12 @@ def delete_expense_db(expense_id):
 
 init_db()
 
+# 幣別對應表與台銀行幣代碼
 CURRENCY_MAP = {
     "NT 新台幣": {"code": "TWD", "fallback": 1.0},
     "US 美元": {"code": "USD", "fallback": 32.62},
     "¥ 日圓": {"code": "JPY", "fallback": 0.21},
+    "¥ 人民幣": {"code": "CNY", "fallback": 4.50},
     "₩ 韓元": {"code": "KRW", "fallback": 0.023},
     "€ 歐元": {"code": "EUR", "fallback": 36.58},
     "£ 英鎊": {"code": "GBP", "fallback": 43.70}
@@ -122,39 +124,60 @@ CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", 
 
 MACARON_COLORS = ['#ffb7c5', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#e0bbe4', '#fec8d8']
 
-# 修正後：準確抓取歷史/當日匯率 (1 外幣 =多少 台幣)
-def fetch_rate_by_date(currency_label, target_date):
-    if currency_label == "NT 新台幣":
-        return 1.0, True
-    
-    target_code = CURRENCY_MAP[currency_label]["code"]
+# ✨ 專屬：直接抓取台灣銀行 (Bank of Taiwan) 牌告匯率
+@st.cache_data(ttl=3600)
+def fetch_bot_rate(currency_code, target_date):
+    if currency_code == "TWD":
+        return 1.0
+        
     today = date.today()
+    check_date = min(target_date, today)
     
-    # 1. 嘗試由 Frankfurter API 獲取歷史當天匯率
-    if target_date <= today:
+    # 嘗試向前尋找最近的營業日 (最多遞補 5 天以避開連假)
+    for i in range(5):
+        curr_date = check_date - timedelta(days=i)
+        date_str = curr_date.strftime("%Y%m%d")
+        url = f"https://rate.bot.com.tw/xrt/flcsv/0/day/{date_str}"
         try:
-            date_str = target_date.strftime("%Y-%m-%d")
-            url = f"https://api.frankfurter.dev/v1/{date_str}?from={target_code}&to=TWD"
             res = requests.get(url, timeout=3)
-            if res.status_code == 200:
-                data = res.json()
-                if "rates" in data and "TWD" in data["rates"]:
-                    return round(float(data["rates"]["TWD"]), 4), True
+            if res.status_code == 200 and "牌告匯率" in res.text:
+                lines = res.text.splitlines()
+                for line in lines:
+                    parts = line.split(',')
+                    if len(parts) > 12 and currency_code in parts[0]:
+                        # 優先選取「本行即時賣出」或「本行現金賣出」
+                        spot_sell = parts[12].strip()  # 即時賣出匯率
+                        cash_sell = parts[13].strip()  # 現金賣出匯率
+                        
+                        rate_val = spot_sell if spot_sell and spot_sell != '-' else cash_sell
+                        if rate_val and rate_val != '-':
+                            return round(float(rate_val), 4)
         except Exception:
             pass
             
-    # 2. 未來日期或第一支 API 失敗時：呼叫即時最新匯率 API (ExchangeRate-API)
+    # 若台銀 CSV 無資料，呼叫備用 API 或預設值
     try:
-        url = f"https://open.er-api.com/v6/latest/{target_code}"
-        res = requests.get(url, timeout=3)
+        fallback_url = f"https://open.er-api.com/v6/latest/{currency_code}"
+        res = requests.get(fallback_url, timeout=3)
         if res.status_code == 200:
             data = res.json()
             if "rates" in data and "TWD" in data["rates"]:
-                return round(float(data["rates"]["TWD"]), 4), True
+                return round(float(data["rates"]["TWD"]), 4)
     except Exception:
         pass
+
+    return None
+
+def fetch_rate_by_date(currency_label, target_date):
+    if currency_label == "NT 新台幣":
+        return 1.0, True
         
-    # 3. 若網路均無回應，使用 Fallback 保底
+    code = CURRENCY_MAP[currency_label]["code"]
+    bot_rate = fetch_bot_rate(code, target_date)
+    
+    if bot_rate is not None:
+        return bot_rate, True
+        
     return CURRENCY_MAP[currency_label]["fallback"], False
 
 # 3. 馬卡龍風格 CSS 樣式
@@ -502,7 +525,7 @@ with tab_input:
             elif input_amount is None or input_amount <= 0:
                 st.warning("⚠️ 請輸入有效的數字金額喔！")
             else:
-                with st.spinner("🌐 正在獲取對應日期的國際匯率..."):
+                with st.spinner("🌐 正在獲取台灣銀行對應日期的牌告匯率..."):
                     rate, is_live = fetch_rate_by_date(currency, input_date)
                 
                 date_str = input_date.strftime("%Y-%m-%d")
