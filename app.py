@@ -697,7 +697,7 @@ else:
 # 13. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：對齊右側欄位，常用選擇帶入與金額即時計算 ---
+# --- 分頁 1：對齊右側欄位，切換自動清空與即時折算 ---
 with tab_input:
     reset_key = st.session_state.form_reset_key
 
@@ -719,7 +719,7 @@ with tab_input:
     key_amt = f"input_amt_{reset_key}"
     key_curr = f"input_curr_{reset_key}"
 
-    # 當「常用」下拉選單被選取時，寫入 state
+    # 當「常用」下拉選單切換時，處理自動帶入與清空
     def on_fav_change():
         selected = st.session_state[f"fav_select_{reset_key}"]
         if selected != "不選擇（手動輸入）" and selected in fav_items_map:
@@ -728,6 +728,12 @@ with tab_input:
             st.session_state[key_cat] = f["category"] if f["category"] in CATEGORIES else CATEGORIES[0]
             st.session_state[key_amt] = str(f["original_amount"])
             st.session_state[key_curr] = f["currency"] if f["currency"] in CURRENCY_MAP else "NT 新台幣"
+        else:
+            # 切回「不選擇（手動輸入）」時，清空下方輸入框
+            st.session_state[key_item] = ""
+            st.session_state[key_cat] = None
+            st.session_state[key_amt] = ""
+            st.session_state[key_curr] = "NT 新台幣"
 
     def on_change_main_input():
         st.session_state.show_popup_type = "switching"
@@ -763,10 +769,10 @@ with tab_input:
     
     st.markdown("**花費金額**")
     
-    # 輸入框（綁定 key_amt 實現動態雙向監聽）
+    # 輸入框
     input_amount_str = st.text_input("請輸入金額...", placeholder="請輸入金額...", key=key_amt, label_visibility="collapsed")
 
-    # ⚡ 即時動態算台幣折算金額
+    # ⚡ 即時動態計算折算金額 (優先抓取 session_state 或表單數值)
     val_to_calc = st.session_state.get(key_amt, input_amount_str)
     try:
         input_amount = float(str(val_to_calc).strip()) if val_to_calc and str(val_to_calc).strip() else 0.0
@@ -777,9 +783,12 @@ with tab_input:
     st.info(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
 
     if st.button("💖 儲存這筆紀錄", use_container_width=True, type="primary", key=f"submit_{reset_key}"):
-        if not input_item.strip():
+        curr_item_val = st.session_state.get(key_item, input_item)
+        curr_cat_val = st.session_state.get(key_cat, input_category)
+
+        if not curr_item_val or not curr_item_val.strip():
             st.warning("⚠️ 請填寫消費項目名稱喔！")
-        elif input_category is None:
+        elif curr_cat_val is None:
             st.warning("⚠️ 請選擇消費分類喔！")
         elif input_amount <= 0:
             st.warning("⚠️ 請在上方的「花費金額」欄位輸入有效金額喔！")
@@ -797,8 +806,8 @@ with tab_input:
                     date_str=date_str,
                     year_num=year_num,
                     month_str=month_str,
-                    item=input_item.strip(),
-                    category=input_category,
+                    item=curr_item_val.strip(),
+                    category=curr_cat_val,
                     orig_amt=formatted_orig,
                     currency=currency,
                     rate=round(current_live_rate, 4),
@@ -809,8 +818,8 @@ with tab_input:
                     "date": date_str,
                     "year": year_num,
                     "month": month_str,
-                    "item": input_item.strip(),
-                    "category": input_category,
+                    "item": curr_item_val.strip(),
+                    "category": curr_cat_val,
                     "original_amount": formatted_orig,
                     "currency": currency,
                     "rate_used": round(current_live_rate, 4),
