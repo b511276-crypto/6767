@@ -161,54 +161,6 @@ CURRENCY_MAP = {
     "£ 英鎊": {"code": "GBP", "fallback": 42.00}
 }
 
-# 📊 2年 ~ 10年歷史數據庫
-RATESVIEWER_10Y_DB = {
-    2017: {"USD": 30.43, "JPY": 0.2710, "CNY": 4.500, "KRW": 0.0270, "EUR": 34.35, "GBP": 39.20},
-    2018: {"USD": 30.15, "JPY": 0.2730, "CNY": 4.560, "KRW": 0.0270, "EUR": 35.60, "GBP": 40.20},
-    2019: {"USD": 30.91, "JPY": 0.2830, "CNY": 4.470, "KRW": 0.0260, "EUR": 34.60, "GBP": 39.50},
-    2020: {"USD": 29.58, "JPY": 0.2770, "CNY": 4.280, "KRW": 0.0250, "EUR": 33.80, "GBP": 37.90},
-    2021: {
-        "USD": 27.88, "JPY": 0.2540, "CNY": 4.330, "KRW": 0.0240, "EUR": 33.05, "GBP": 38.50,
-        "monthly": {
-            "2021-01": {"USD": 27.98}, "2021-02": {"USD": 27.85}, "2021-03": {"USD": 28.20},
-            "2021-04": {"USD": 28.25}, "2021-05": {"USD": 27.97}, "2021-06": {"USD": 27.81},
-            "2021-07": {"USD": 27.892, "JPY": 0.2520}, "2021-08": {"USD": 27.84},
-            "2021-09": {"USD": 27.69}, "2021-10": {"USD": 27.83}, "2021-11": {"USD": 27.75},
-            "2021-12": {"USD": 27.68}
-        }
-    },
-    2022: {"USD": 29.80, "JPY": 0.2270, "CNY": 4.420, "KRW": 0.0230, "EUR": 31.35, "GBP": 36.80},
-    2023: {"USD": 31.15, "JPY": 0.2200, "CNY": 4.350, "KRW": 0.0240, "EUR": 33.70, "GBP": 38.70},
-    2024: {"USD": 32.20, "JPY": 0.2080, "CNY": 4.450, "KRW": 0.0230, "EUR": 34.80, "GBP": 41.20},
-    2025: {"USD": 32.50, "JPY": 0.2120, "CNY": 4.480, "KRW": 0.0230, "EUR": 35.20, "GBP": 41.80}
-}
-
-# 🏛️ 10年 ~ 30年中央銀行外匯歷史數據庫 (擴充至 1995 年)
-CBC_LONGTERM_DB = {
-    2016: {"USD": 32.26, "JPY": 0.2970, "CNY": 4.850, "KRW": 0.0270, "EUR": 35.70, "GBP": 43.60},
-    2015: {"USD": 31.89, "JPY": 0.2640, "CNY": 5.080, "KRW": 0.0280, "EUR": 35.30, "GBP": 48.80},
-    2014: {"USD": 30.37, "JPY": 0.2870, "CNY": 4.940, "KRW": 0.0288, "EUR": 40.26, "GBP": 50.08},
-    2013: {"USD": 29.77, "JPY": 0.3050, "CNY": 4.850, "KRW": 0.0272, "EUR": 39.50, "GBP": 46.50},
-    2012: {"USD": 29.62, "JPY": 0.3710, "CNY": 4.690, "KRW": 0.0263, "EUR": 38.04, "GBP": 46.90},
-    2011: {"USD": 29.47, "JPY": 0.3690, "CNY": 4.560, "KRW": 0.0266, "EUR": 41.02, "GBP": 47.20},
-    2010: {"USD": 31.64, "JPY": 0.3610, "CNY": 4.670, "KRW": 0.0274, "EUR": 41.98, "GBP": 48.90},
-    2009: {"USD": 33.05, "JPY": 0.3530, "CNY": 4.830, "KRW": 0.0259, "EUR": 46.00, "GBP": 51.60},
-    2008: {"USD": 31.52, "JPY": 0.3060, "CNY": 4.530, "KRW": 0.0286, "EUR": 46.30, "GBP": 58.20},
-    2007: {"USD": 32.84, "JPY": 0.2790, "CNY": 4.320, "KRW": 0.0354, "EUR": 44.90, "GBP": 65.60},
-    2006: {"USD": 32.53, "JPY": 0.2790, "CNY": 4.080, "KRW": 0.0341, "EUR": 40.80, "GBP": 59.90},
-    2005: {"USD": 32.17, "JPY": 0.2920, "CNY": 3.930, "KRW": 0.0314, "EUR": 40.10, "GBP": 58.50},
-    2004: {"USD": 33.43, "JPY": 0.3090, "CNY": 4.040, "KRW": 0.0292, "EUR": 41.50, "GBP": 61.20},
-    2003: {"USD": 34.42, "JPY": 0.2970, "CNY": 4.160, "KRW": 0.0289, "EUR": 38.90, "GBP": 56.20},
-    2002: {"USD": 34.58, "JPY": 0.2760, "CNY": 4.180, "KRW": 0.0276, "EUR": 32.60, "GBP": 51.90},
-    2001: {"USD": 33.80, "JPY": 0.2780, "CNY": 4.080, "KRW": 0.0262, "EUR": 30.30, "GBP": 48.70},
-    2000: {"USD": 31.23, "JPY": 0.2900, "CNY": 3.770, "KRW": 0.0276, "EUR": 28.80, "GBP": 47.30},
-    1999: {"USD": 32.27, "JPY": 0.2830, "CNY": 3.900, "KRW": 0.0271, "EUR": 34.40, "GBP": 52.20},
-    1998: {"USD": 33.46, "JPY": 0.2560, "CNY": 4.040, "KRW": 0.0239, "EUR": 37.50, "GBP": 55.40},
-    1997: {"USD": 28.70, "JPY": 0.2370, "CNY": 3.460, "KRW": 0.0302, "EUR": 32.40, "GBP": 47.00},
-    1996: {"USD": 27.49, "JPY": 0.2530, "CNY": 3.310, "KRW": 0.0342, "EUR": 35.10, "GBP": 42.90},
-    1995: {"USD": 26.49, "JPY": 0.2820, "CNY": 3.170, "KRW": 0.0343, "EUR": 34.70, "GBP": 41.80}
-}
-
 CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", "🎮 娛樂遊玩", "🏠 居家日常", "💊 醫療健康", "✨ 其他雜項"]
 
 MACARON_COLORS = ['#ffb7c5', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#e0bbe4', '#fec8d8']
@@ -224,8 +176,6 @@ def fetch_rate_by_date(currency_label, target_date):
     today = date.today()
     check_date = min(target_date, today)
     days_diff = (today - check_date).days
-    target_year = check_date.year
-    target_month_str = check_date.strftime("%Y-%m")
 
     if days_diff <= 365:
         try:
@@ -235,29 +185,9 @@ def fetch_rate_by_date(currency_label, target_date):
                 data = res.json()
                 if "rates" in data and "TWD" in data["rates"]:
                     val = float(data["rates"]["TWD"])
-                    if code in ["USD", "EUR", "GBP"] and val < 10:
-                        return fallback
-                    if code == "JPY" and val > 1.0:
-                        return fallback
-                    if code == "KRW" and val > 0.2:
-                        return fallback
-                    if code == "CNY" and (val < 2 or val > 10):
-                        return fallback
                     return round(val, 4)
         except Exception:
             pass
-
-    if target_year in RATESVIEWER_10Y_DB:
-        year_db = RATESVIEWER_10Y_DB[target_year]
-        if "monthly" in year_db and target_month_str in year_db["monthly"]:
-            month_db = year_db["monthly"][target_month_str]
-            if code in month_db:
-                return month_db[code]
-        if code in year_db:
-            return year_db[code]
-
-    if target_year in CBC_LONGTERM_DB and code in CBC_LONGTERM_DB[target_year]:
-        return CBC_LONGTERM_DB[target_year][code]
 
     return fallback
 
@@ -296,7 +226,7 @@ st.markdown("""
         line-height: 1.3;
         text-align: center;
     }
-    
+
     .cute-header p { 
         font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif;
         color: #7d5a60; 
@@ -307,22 +237,6 @@ st.markdown("""
         text-align: center;
     }
 
-    .popup-box {
-        text-align: center;
-        padding: 1.5rem 1rem;
-    }
-    
-    .popup-icon {
-        font-size: 3.2rem;
-        margin-bottom: 0.8rem;
-        animation: pulse 1.2s infinite alternate;
-    }
-
-    @keyframes pulse {
-        0% { transform: scale(1); }
-        100% { transform: scale(1.15); }
-    }
-    
     .sidebar-user-card {
         background-color: #ffffff;
         border: 2px solid #ffd1dc;
@@ -399,13 +313,6 @@ st.markdown("""
         box-shadow: 0 6px 16px rgba(201, 67, 83, 0.35) !important;
     }
 
-    /* 縮小星星常用按鈕之邊界與排版 */
-    div[data-testid="stColumn"] button[help="點擊設定/取消為常用項目"] {
-        padding: 2px 6px !important;
-        font-size: 0.85rem !important;
-        min-height: 32px !important;
-    }
-
     #MainMenu {visibility: hidden;} footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
@@ -433,8 +340,8 @@ if 'show_popup_type' not in st.session_state:
 def cute_status_dialog(msg_type):
     if msg_type == "switching":
         st.markdown("""
-        <div class="popup-box">
-            <div class="popup-icon">🔄✨</div>
+        <div style="text-align: center; padding: 1.5rem 1rem;">
+            <div style="font-size: 3.2rem; margin-bottom: 0.8rem;">🔄✨</div>
             <h3 style="color: #ff6b81; font-weight: 800;">切換中，請稍後...</h3>
             <p style="color: #8b7d83; font-weight: 700;">正在為您精準連線並獲取最新匯率數字喔！</p>
         </div>
@@ -446,8 +353,8 @@ def cute_status_dialog(msg_type):
             
     elif msg_type == "saved":
         st.markdown("""
-        <div class="popup-box">
-            <div class="popup-icon">🎉💖</div>
+        <div style="text-align: center; padding: 1.5rem 1rem;">
+            <div style="font-size: 3.2rem; margin-bottom: 0.8rem;">🎉💖</div>
             <h3 style="color: #ff6b81; font-weight: 800;">資料儲存成功！</h3>
             <p style="color: #8b7d83; font-weight: 700;">已經為你完美紀錄這筆生活消費囉！</p>
         </div>
@@ -456,8 +363,8 @@ def cute_status_dialog(msg_type):
         
     elif msg_type == "updated":
         st.markdown("""
-        <div class="popup-box">
-            <div class="popup-icon">✏️🌸</div>
+        <div style="text-align: center; padding: 1.5rem 1rem;">
+            <div style="font-size: 3.2rem; margin-bottom: 0.8rem;">✏️🌸</div>
             <h3 style="color: #ff6b81; font-weight: 800;">修改完成！</h3>
             <p style="color: #8b7d83; font-weight: 700;">消費紀錄已經更新完畢囉！</p>
         </div>
@@ -786,12 +693,12 @@ else:
 # 13. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：常用選單置於「新增一筆消費」旁邊並預填表單 ---
+# --- 分頁 1：對齊右側欄位，並確保選取常用時 100% 填入下方輸入框 ---
 with tab_input:
     reset_key = st.session_state.form_reset_key
 
-    # 準備常用項目選項資料
-    fav_options = ["不選擇常用（手動輸入）"]
+    # 準備常用選項資料映射表
+    fav_options = ["不選擇（手動輸入）"]
     fav_items_map = {}
     
     if not df.empty and "is_favorite" in df.columns:
@@ -802,29 +709,33 @@ with tab_input:
                 fav_options.append(lbl)
                 fav_items_map[lbl] = f_row
 
-    # 📍 標題與「常用選單」放在同一列（並排）
-    header_col1, header_col2 = st.columns([1.2, 1])
-    with header_col1:
-        st.subheader("💮 新增一筆消費")
-    with header_col2:
-        selected_fav = st.selectbox("常用", fav_options, key=f"fav_select_{reset_key}", label_visibility="visible")
+    # 綁定元件 Key，確保 Streamlit Session State 能直接改寫值
+    key_item = f"input_item_{reset_key}"
+    key_cat = f"input_cat_{reset_key}"
+    key_amt = f"input_amt_{reset_key}"
+    key_curr = f"input_curr_{reset_key}"
 
-    # 根據選取的常用項目，自動賦予預設填入值
-    if selected_fav != "不選擇常用（手動輸入）" and selected_fav in fav_items_map:
-        f_data = fav_items_map[selected_fav]
-        default_item_val = f_data["item"]
-        default_cat_val = f_data["category"] if f_data["category"] in CATEGORIES else None
-        default_amt_val = str(f_data["original_amount"])
-        default_curr_val = f_data["currency"] if f_data["currency"] in CURRENCY_MAP else "NT 新台幣"
-    else:
-        default_item_val = ""
-        default_cat_val = None
-        default_amt_val = ""
-        default_curr_val = "NT 新台幣"
+    # 當「常用」下拉選單被選取時，立刻把值寫入 state
+    def on_fav_change():
+        selected = st.session_state[f"fav_select_{reset_key}"]
+        if selected != "不選擇（手動輸入）" and selected in fav_items_map:
+            f = fav_items_map[selected]
+            st.session_state[key_item] = str(f["item"])
+            st.session_state[key_cat] = f["category"] if f["category"] in CATEGORIES else CATEGORIES[0]
+            st.session_state[key_amt] = str(f["original_amount"])
+            st.session_state[key_curr] = f["currency"] if f["currency"] in CURRENCY_MAP else "NT 新台幣"
 
     def on_change_main_input():
         st.session_state.show_popup_type = "switching"
 
+    # 📍 頂部對齊：左邊放「新增一筆消費」，右邊放「常用」下拉選單（完美與右欄對齊）
+    top_col1, top_col2 = st.columns(2)
+    with top_col1:
+        st.subheader("💮 新增一筆消費")
+    with top_col2:
+        st.selectbox("常用", fav_options, key=f"fav_select_{reset_key}", on_change=on_fav_change)
+
+    # 兩欄表單
     input_col1, input_col2 = st.columns(2)
     with input_col1:
         input_date = st.date_input(
@@ -836,24 +747,22 @@ with tab_input:
             on_change=on_change_main_input
         )
     with input_col2:
-        curr_idx = list(CURRENCY_MAP.keys()).index(default_curr_val) if default_curr_val in CURRENCY_MAP else 0
-        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=curr_idx, key=f"curr_{reset_key}", on_change=on_change_main_input)
+        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), key=key_curr, on_change=on_change_main_input)
 
     current_live_rate = fetch_rate_by_date(currency, input_date)
 
     f_col1, f_col2 = st.columns(2)
     with f_col1:
-        input_item = st.text_input("消費項目", value=default_item_val, placeholder="例如：韓國炸雞 🍗", key=f"item_{reset_key}")
+        input_item = st.text_input("消費項目", placeholder="例如：韓國炸雞 🍗", key=key_item)
     with f_col2:
-        cat_idx = CATEGORIES.index(default_cat_val) if default_cat_val in CATEGORIES else None
-        input_category = st.selectbox("消費分類", CATEGORIES, index=cat_idx, placeholder="請選擇分類...", key=f"cat_{reset_key}")
+        input_category = st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=key_cat)
     
     st.markdown("**花費金額**")
-    input_amount_str = st.text_input("請輸入金額...", value=default_amt_val, placeholder="請輸入金額...", key=f"amt_str_{reset_key}", label_visibility="collapsed")
+    input_amount_str = st.text_input("請輸入金額...", placeholder="請輸入金額...", key=key_amt, label_visibility="collapsed")
 
     # 即時計算台幣
     try:
-        input_amount = float(input_amount_str.strip()) if input_amount_str.strip() else 0.0
+        input_amount = float(input_amount_str.strip()) if input_amount_str and input_amount_str.strip() else 0.0
     except ValueError:
         input_amount = 0.0
 
@@ -946,7 +855,6 @@ with tab_input:
                 if st.button("✏️ 修改", key=f"btn_edit_{prefix}_{rec_id}", use_container_width=True):
                     edit_expense_dialog(rec, rec_id, prefix)
             with list_col4:
-                # ⭐️ 小型化星星按鈕
                 if st.button(star_icon, key=f"btn_fav_{prefix}_{rec_id}", use_container_width=True, help="點擊設定/取消為常用項目"):
                     if st.session_state.logged_in:
                         new_st = toggle_favorite_db(rec_id, is_fav)
