@@ -28,7 +28,6 @@ def init_db():
         )
     ''')
     
-    # 檢查並補齊舊版的欄位
     for col, default_val in [("avatar_type", "'char'"), ("avatar_data", "''")]:
         try:
             c.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT DEFAULT {default_val}")
@@ -60,7 +59,6 @@ def hash_password(password):
 def register_user(username, password):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    # 預設頭像為帳號第一個字元 (大寫)
     default_char = username[0].upper() if username else "🌸"
     try:
         c.execute(
@@ -321,8 +319,8 @@ st.markdown("""
     }
     
     .avatar-circle-img {
-        width: 70px;
-        height: 70px;
+        width: 75px;
+        height: 75px;
         border-radius: 50%;
         object-fit: cover;
         border: 3px solid #ffb7c5;
@@ -332,14 +330,14 @@ st.markdown("""
     }
 
     .avatar-circle-char {
-        width: 70px;
-        height: 70px;
+        width: 75px;
+        height: 75px;
         border-radius: 50%;
         background: linear-gradient(135deg, #ffb7c5, #ffdac1);
         color: white;
-        font-size: 2.2rem;
+        font-size: 2.3rem;
         font-weight: 900;
-        line-height: 70px;
+        line-height: 75px;
         text-align: center;
         box-shadow: 0 4px 10px rgba(255, 183, 197, 0.4);
         margin: 0 auto 0.6rem auto;
@@ -371,7 +369,6 @@ st.markdown("""
         width: 100%;
     }
 
-    /* 🎨 調暗「儲存按鈕」的色彩，變得溫柔質感 */
     div.stButton > button[kind="primary"] {
         background-color: #e05263 !important;
         border-color: #e05263 !important;
@@ -451,7 +448,91 @@ def cute_status_dialog(msg_type):
 if st.session_state.show_popup_type:
     cute_status_dialog(st.session_state.show_popup_type)
 
-# 6. 彈出式修改小視窗
+# ✂️ 6. 彈出式「自由照片裁切」小視窗
+@st.dialog("✂️ 裁切頭像照片")
+def avatar_cropper_dialog():
+    st.markdown("請選擇一張電腦中的圖片，並在下方畫面上自由**拖拉/縮放**選擇裁切區域：")
+    
+    # 載入 Cropper.js 靜態庫與 CSS 樣式
+    cropper_html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+        <style>
+            body { font-family: sans-serif; background-color: #fffaf5; margin: 0; padding: 10px; text-align: center; }
+            .img-container { max-width: 100%; max-height: 320px; margin-bottom: 15px; background: #eee; border-radius: 12px; overflow: hidden; }
+            img { max-width: 100%; display: block; }
+            .btn-crop {
+                background-color: #e05263; color: white; border: none; padding: 10px 20px; font-size: 1rem;
+                font-weight: bold; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 10px rgba(224, 82, 99, 0.3);
+            }
+            .btn-crop:hover { background-color: #c94353; }
+            /* 圓形裁切外觀 */
+            .cropper-view-box, .cropper-face { border-radius: 50%; }
+        </style>
+    </head>
+    <body>
+        <input type="file" id="imageInput" accept="image/*" style="margin-bottom: 12px; width: 100%;">
+        <div class="img-container">
+            <img id="imageToCrop" src="" style="display:none;">
+        </div>
+        <button type="button" class="btn-crop" id="cropBtn" style="display:none;" onclick="cropAndSave()">✂️ 完成裁切並儲存</button>
+
+        <script>
+            var cropper;
+            var imageInput = document.getElementById('imageInput');
+            var imageToCrop = document.getElementById('imageToCrop');
+            var cropBtn = document.getElementById('cropBtn');
+
+            imageInput.addEventListener('change', function(e) {
+                var files = e.target.files;
+                if (files && files.length > 0) {
+                    var reader = new FileReader();
+                    reader.onload = function(e) {
+                        imageToCrop.src = e.target.result;
+                        imageToCrop.style.display = 'block';
+                        cropBtn.style.display = 'inline-block';
+                        if (cropper) { cropper.destroy(); }
+                        cropper = new Cropper(imageToCrop, {
+                            aspectRatio: 1,
+                            viewMode: 1,
+                            dragMode: 'move',
+                            autoCropArea: 0.8,
+                            restore: false,
+                            guides: false,
+                            center: true,
+                            highlight: false,
+                            cropBoxMovable: true,
+                            cropBoxResizable: true,
+                            toggleDragModeOnDblclick: false,
+                        });
+                    };
+                    reader.readAsDataURL(files[0]);
+                }
+            });
+
+            function cropAndSave() {
+                if (!cropper) return;
+                var canvas = cropper.getCroppedCanvas({
+                    width: 200,
+                    height: 200
+                });
+                var croppedBase64 = canvas.toDataURL('image/png');
+                
+                // 透過 query_params 將裁切後的 Base64 送回 Python 後端
+                const url = new URL(window.location.href);
+                url.searchParams.set('cropped_avatar_data', croppedBase64);
+                window.location.href = url.href;
+            }
+        </script>
+    </body>
+    </html>
+    """
+    st.components.v1.html(cropper_html, height=430)
+
+# 7. 彈出式修改記帳小視窗
 @st.dialog("✏️ 修改記帳紀錄")
 def edit_expense_dialog(rec, rec_id, prefix):
     unique_key = f"dlg_{prefix}_{rec_id}"
@@ -551,7 +632,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
             st.toast("🗑️ 已成功刪除該筆資料！", icon="✨")
             st.rerun()
 
-# 7. 通用圖表繪製函式
+# 8. 通用圖表繪製函式
 def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=False):
     chart_df = df_data.copy()
     
@@ -594,7 +675,18 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
     )
     st.plotly_chart(fig, use_container_width=True, key=key_name)
 
-# 8. 側邊欄：登入、註冊與上傳頭像
+# 處理裁切完成回傳的圖片
+if "cropped_avatar_data" in st.query_params:
+    cropped_b64 = st.query_params.get("cropped_avatar_data")
+    st.query_params.clear()
+    if st.session_state.logged_in and cropped_b64:
+        update_user_avatar(st.session_state.username, "img", cropped_b64)
+        st.session_state.avatar_type = "img"
+        st.session_state.avatar_data = cropped_b64
+        st.toast("🎉 新頭像裁切並更新成功！", icon="✨")
+        st.rerun()
+
+# 9. 側邊欄：登入、註冊與上傳頭像
 with st.sidebar:
     st.title("🌸 帳號管理")
     
@@ -629,7 +721,6 @@ with st.sidebar:
                 else:
                     st.warning("⚠️ 該名稱已有人使用")
     else:
-        # 顯示頭像 (字元或上傳的圖片)
         if st.session_state.avatar_type == "img" and st.session_state.avatar_data:
             avatar_html = f'<img src="{st.session_state.avatar_data}" class="avatar-circle-img">'
         else:
@@ -644,33 +735,17 @@ with st.sidebar:
         </div>
         """, unsafe_allow_html=True)
 
-        with st.expander("🖼️ 上傳個人頭像圖片"):
-            uploaded_file = st.file_uploader("選擇圖片 (JPG, PNG)", type=["png", "jpg", "jpeg", "webp"], key="upload_avatar_file")
-            if uploaded_file is not None:
-                if st.button("💾 儲存並更新頭像", use_container_width=True):
-                    try:
-                        image = Image.open(uploaded_file)
-                        image.thumbnail((150, 150))
-                        buffered = io.BytesIO()
-                        image.save(buffered, format="PNG")
-                        img_base64 = "data:image/png;base64," + base64.b64encode(buffered.getvalue()).decode()
-                        
-                        update_user_avatar(st.session_state.username, "img", img_base64)
-                        st.session_state.avatar_type = "img"
-                        st.session_state.avatar_data = img_base64
-                        st.toast("🎉 頭像圖片更新成功！", icon="✨")
-                        st.rerun()
-                    except Exception as e:
-                        st.error("⚠️ 圖片處理解析失敗，請試試其他圖片喔！")
+        if st.button("🖼️ 選擇並裁切照片頭像", use_container_width=True):
+            avatar_cropper_dialog()
 
-            if st.session_state.avatar_type == "img":
-                if st.button("🔄 恢復預設文字頭像", use_container_width=True):
-                    default_char = st.session_state.username[0].upper()
-                    update_user_avatar(st.session_state.username, "char", default_char)
-                    st.session_state.avatar_type = "char"
-                    st.session_state.avatar_data = default_char
-                    st.toast("🎉 已恢復為首字文字頭像！", icon="✨")
-                    st.rerun()
+        if st.session_state.avatar_type == "img":
+            if st.button("🔄 恢復預設首字頭像", use_container_width=True):
+                default_char = st.session_state.username[0].upper()
+                update_user_avatar(st.session_state.username, "char", default_char)
+                st.session_state.avatar_type = "char"
+                st.session_state.avatar_data = default_char
+                st.toast("🎉 已恢復為首字文字頭像！", icon="✨")
+                st.rerun()
 
         if st.button("🚪 安全登出", use_container_width=True):
             st.session_state.logged_in = False
@@ -703,7 +778,7 @@ with st.sidebar:
                     st.toast("🗑️ 帳號及相關資料已成功註銷！", icon="✨")
                     st.rerun()
 
-# 9. 主頁面 Header
+# 10. 主頁面 Header
 st.markdown("""
 <div class="cute-header">
     <h1>🌸生活記帳本🌸</h1>
@@ -711,7 +786,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# 10. 資料同步提醒
+# 11. 資料同步提醒
 if st.session_state.logged_in and len(st.session_state.guest_expenses) > 0:
     st.info(f"💡 系統偵測到你在未登入時共有 **{len(st.session_state.guest_expenses)}** 筆記帳紀錄！")
     if st.button("📥 一鍵將舊紀錄匯入我的帳號", use_container_width=True):
@@ -732,14 +807,14 @@ if st.session_state.logged_in and len(st.session_state.guest_expenses) > 0:
         st.toast("🎉 舊紀錄已完美匯入你的個人帳號中！", icon="✨")
         st.rerun()
 
-# 11. 載入當前資料
+# 12. 載入當前資料
 if st.session_state.logged_in:
     current_user = st.session_state.username
     df = load_user_expenses(current_user)
 else:
     df = pd.DataFrame(st.session_state.guest_expenses)
 
-# 12. 記帳與分析主介面
+# 13. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
 # --- 分頁 1：單一原生 HTML 表單 (超高感度即時計算、無多餘輸入框) ---
@@ -805,15 +880,12 @@ with tab_input:
     </script>
     """
     
-    # 渲染獨立 HTML 表單元件
-    form_data = st.components.v1.html(native_form_html, height=185)
+    st.components.v1.html(native_form_html, height=185)
 
-    # 用來接收表單提交資料的 query params 處理機制
-    query_params = st.query_params
-    submitted_amt_str = query_params.get("submitted_amount", "")
+    # 處理表單提交
+    submitted_amt_str = st.query_params.get("submitted_amount", "")
 
     if submitted_amt_str:
-        # 清除網址列參數，防止重新整理頁面時重複寫入
         st.query_params.clear()
         try:
             input_amount = float(submitted_amt_str)
