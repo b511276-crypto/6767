@@ -61,7 +61,7 @@ def authenticate_user(username, password):
     c.execute("SELECT password_hash FROM users WHERE username = ?", (username,))
     row = c.fetchone()
     conn.close()
-    if row and row[0] == hash_password(password):
+    if row and row[0] == hashlib.sha256(password.encode()).hexdigest():
         return True
     return False
 
@@ -301,7 +301,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
             st.toast("🗑️ 已成功刪除該筆資料！", icon="✨")
             st.rerun()
 
-# 6. 通用圖表繪製函式（加入數字標籤與自適應優化）
+# 6. 通用圖表繪製函式（小區塊自動拉出外部顯示文字）
 def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=False):
     chart_df = df_data.copy()
     
@@ -311,19 +311,17 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
     else:
         x_target = x_col
 
-    if chart_type == "🥧 圓餅圖 (Pie)":
-        fig = px.pie(chart_df, values=y_col, names=x_target, hole=0, color_discrete_sequence=MACARON_COLORS)
-        fig.update_traces(textposition='inside', textinfo='percent+label')
-    elif chart_type == "🍩 環形圖 (Donut)":
-        fig = px.pie(chart_df, values=y_col, names=x_target, hole=0.45, color_discrete_sequence=MACARON_COLORS)
-        fig.update_traces(textposition='inside', textinfo='percent+label')
+    if chart_type in ["🥧 圓餅圖 (Pie)", "🍩 環形圖 (Donut)"]:
+        hole_val = 0.45 if chart_type == "🍩 環形圖 (Donut)" else 0
+        fig = px.pie(chart_df, values=y_col, names=x_target, hole=hole_val, color_discrete_sequence=MACARON_COLORS)
+        # ✨ 改為 auto：大扇形在內部顯示，小扇形自動拉到外面並加連線指示
+        fig.update_traces(textposition='auto', textinfo='percent+label')
     elif chart_type == "📊 柱狀圖 (Bar)":
         fig = px.bar(chart_df, x=x_target, y=y_col, color=x_target, color_discrete_sequence=MACARON_COLORS, text_auto=',d')
         fig.update_traces(marker_cornerradius=12, textposition='outside')
         fig.update_layout(showlegend=False, xaxis_title="", yaxis_title="金額 (NT$)")
     elif chart_type == "📈 折線圖 (Line)":
         fig = px.line(chart_df, x=x_target, y=y_col, markers=True, color_discrete_sequence=['#ff6b81'], text=y_col)
-        # 於折線點上方標註金額數字，避免小金額看不出來
         fig.update_traces(
             line=dict(width=3), 
             marker=dict(size=10),
@@ -334,8 +332,7 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
 
     fig.update_xaxes(type='category')
     
-    # 動態優化 Y 軸範圍，確保數據點頂端有留白展示文字
-    if not chart_df.empty and y_col in chart_df.columns:
+    if chart_type in ["📊 柱狀圖 (Bar)", "📈 折線圖 (Line)"] and not chart_df.empty and y_col in chart_df.columns:
         max_y = chart_df[y_col].max()
         fig.update_yaxes(range=[0, max_y * 1.25], tickformat=',d', nticks=6)
 
