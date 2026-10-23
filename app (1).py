@@ -120,7 +120,6 @@ CURRENCY_MAP = {
 
 CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", "🎮 娛樂遊玩", "🏠 居家日常", "💊 醫療健康", "✨ 其他雜項"]
 
-# 馬卡龍風圖表配色
 MACARON_COLORS = ['#ffb7c5', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#e0bbe4', '#fec8d8']
 
 def fetch_realtime_rate(currency_label):
@@ -142,15 +141,15 @@ def fetch_realtime_rate(currency_label):
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@700;900&display=swap');
-
+    
     .stApp { 
         background-color: #fffaf5; 
         font-family: 'Zen Maru Gothic', sans-serif; 
         color: #5c4b51; 
     }
-
+    
     .stMarkdown a, .cute-header a { display: none !important; }
-
+    
     .cute-header {
         background: linear-gradient(135deg, #ffb7c5, #ffe4e1);
         padding: 2.5rem 1.5rem;
@@ -160,7 +159,7 @@ st.markdown("""
         margin-bottom: 2rem;
         width: 100%;
     }
-
+    
     .cute-header h1 { 
         font-family: 'Zen Maru Gothic', sans-serif;
         font-weight: 900;
@@ -173,7 +172,7 @@ st.markdown("""
         line-height: 1.3;
         text-align: center;
     }
-
+    
     .cute-header p { 
         font-family: 'Zen Maru Gothic', sans-serif;
         color: #7d5a60; 
@@ -183,7 +182,7 @@ st.markdown("""
         font-weight: 700; 
         text-align: center;
     }
-
+    
     .sidebar-user-card {
         background-color: #ffffff;
         border: 2px solid #ffd1dc;
@@ -193,7 +192,7 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(255, 209, 220, 0.25);
         margin-bottom: 1.2rem;
     }
-
+    
     .sidebar-user-card h3 {
         color: #ff6b81;
         font-size: 1.3rem;
@@ -212,7 +211,7 @@ st.markdown("""
     }
     .stat-label { font-size: 0.95rem; color: #8b7d83; font-weight: 700; }
     .stat-value { font-size: 2.1rem; font-weight: 900; color: #ff6b81; margin-top: 0.3rem; }
-
+    
     .amount-right-align {
         text-align: right !important;
         font-weight: 700;
@@ -239,8 +238,8 @@ if 'confirm_delete_account' not in st.session_state:
 # 5. 彈出式修改小視窗 (st.dialog)
 @st.dialog("✏️ 修改記帳紀錄")
 def edit_expense_dialog(rec, rec_id, prefix):
-    unique_key = f"{prefix}_{rec_id}"
-
+    unique_key = f"dlg_{prefix}_{rec_id}"
+    
     edit_date = st.date_input("修改日期", datetime.strptime(rec["date"], "%Y-%m-%d"), key=f"d_{unique_key}")
     edit_item = st.text_input("修改項目名稱", value=rec["item"], key=f"i_{unique_key}")
     edit_category = st.selectbox("修改分類", CATEGORIES, index=CATEGORIES.index(rec["category"]), key=f"cat_{unique_key}")
@@ -264,7 +263,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
                 rate, _ = fetch_realtime_rate(edit_currency)
                 amount_twd_val = int(round(edit_amount * rate))
                 formatted_orig = str(int(edit_amount)) if edit_amount.is_integer() else str(edit_amount)
-
+                
                 if st.session_state.logged_in:
                     update_expense_db(
                         expense_id=rec_id,
@@ -305,10 +304,10 @@ def edit_expense_dialog(rec, rec_id, prefix):
 # 6. 側邊欄：登入與註冊系統
 with st.sidebar:
     st.title("🌸 帳號管理")
-
+    
     if not st.session_state.logged_in:
         auth_mode = st.radio("選擇操作", ["🔑 登入", "✨ 註冊新帳號"])
-
+        
         if auth_mode == "🔑 登入":
             st.subheader("使用者登入")
             login_user = st.text_input("帳號", key="login_user")
@@ -321,7 +320,7 @@ with st.sidebar:
                     st.rerun()
                 else:
                     st.error("⚠️ 帳號或密碼錯誤喔！")
-
+                    
         else:
             st.subheader("建立新帳號")
             reg_user = st.text_input("設定帳號", key="reg_user")
@@ -340,16 +339,16 @@ with st.sidebar:
             <h3>🌸 {st.session_state.username}</h3>
         </div>
         """, unsafe_allow_html=True)
-
+        
         if st.button("🚪 安全登出", use_container_width=True):
             st.session_state.logged_in = False
             st.session_state.username = ""
             st.session_state.confirm_delete_account = False
             st.toast("👋 已成功登出！", icon="✨")
             st.rerun()
-
+            
         st.markdown("---")
-
+        
         if not st.session_state.confirm_delete_account:
             if st.button("🚨 註銷帳號", use_container_width=True):
                 st.session_state.confirm_delete_account = True
@@ -413,18 +412,18 @@ tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨
 with tab_input:
     st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
-
+    
     with st.form("add_expense_form", clear_on_submit=False):
         col1, col2 = st.columns(2)
         with col1:
             input_date = st.date_input("選擇日期 (年/月/日)", datetime.now().date(), key=f"date_{reset_key}")
             input_item = st.text_input("消費項目", placeholder="例如：日本拉麵 🍜", key=f"item_{reset_key}")
             currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=0, key=f"curr_{reset_key}")
-
+            
         with col2:
             input_category = st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=f"cat_{reset_key}")
             input_amount_str = st.text_input("花費金額", placeholder="請輸入金額...", key=f"amt_{reset_key}")
-
+        
         submit_btn = st.form_submit_button("💖 儲存這筆紀錄")
 
         if submit_btn:
@@ -442,14 +441,14 @@ with tab_input:
             else:
                 with st.spinner("🌐 正在獲取國際即時匯率..."):
                     rate, is_live = fetch_realtime_rate(currency)
-
+                
                 date_str = input_date.strftime("%Y-%m-%d")
                 year_num = input_date.year
                 month_str = input_date.strftime("%Y-%m")
-
+                
                 amount_twd_val = int(round(input_amount * rate))
                 formatted_orig = str(int(input_amount)) if input_amount.is_integer() else str(input_amount)
-
+                
                 if st.session_state.logged_in:
                     add_expense_db(
                         username=st.session_state.username,
@@ -489,26 +488,25 @@ with tab_input:
             selected_cat_filter = st.selectbox("🔍 按分類查看：", ["✨ 全部分類"] + CATEGORIES, key="input_cat_filter")
         with filter_col2:
             sort_order = st.selectbox("⏳ 日期排序方式：", ["📅 最新日期在前", "📅 最舊日期在前"], key="input_sort_order")
-
+        
         expenses_list = df.to_dict('records')
         if selected_cat_filter != "✨ 全部分類":
             expenses_list = [item for item in expenses_list if item["category"] == selected_cat_filter]
-
+            
         is_asc = (sort_order == "📅 最舊日期在前")
         expenses_list.sort(key=lambda x: x["date"], reverse=not is_asc)
-
+        
         prefix = "db" if st.session_state.logged_in else "guest"
-
+        
         for idx, rec in enumerate(expenses_list):
             rec_id = rec.get("id", idx)
-
+            
             left_info = f"🗓️ {rec['date']} | {rec['category']} | {rec['item']}"
             if rec['currency'] == "NT 新台幣":
                 right_amount = f"NT {rec['amount_twd']:,}"
             else:
                 right_amount = f"{rec['currency']} {rec['original_amount']} (折算 NT {rec['amount_twd']:,}，匯率 {rec['rate_used']:.2f})"
-
-            # 使用兩欄 + 修改按鈕直接呼叫 st.dialog 小視窗
+            
             list_col1, list_col2, list_col3 = st.columns([5, 4, 1.5])
             with list_col1:
                 st.write(f"**{left_info}**")
@@ -525,17 +523,16 @@ with tab_input:
 with tab_month:
     if not df.empty:
         all_months = sorted(df['month'].unique(), reverse=True)
-        selected_month = st.selectbox("🗓️ 請選擇月份：", all_months)
-
+        selected_month = st.selectbox("🗓️ 請選擇月份：", all_months, key="select_month_key")
+        
         m_df = df[df['month'] == selected_month]
         month_total = m_df['amount_twd'].sum()
-
+        
         st.markdown(f'<div class="stat-card"><div class="stat-label">🌸 {selected_month} 當月累積總消費 (已折算台幣)</div><div class="stat-value">NT$ {month_total:,}</div></div>', unsafe_allow_html=True)
-
+        
         st.markdown("##### 🍰 本月分類消費占比 (馬卡龍圓餅圖)")
         cat_m = m_df.groupby('category')['amount_twd'].sum().reset_index()
-
-        # 繪製可愛馬卡龍風甜甜圈圓餅圖
+        
         fig_m = px.pie(
             cat_m, 
             values='amount_twd', 
@@ -555,35 +552,34 @@ with tab_month:
             plot_bgcolor='rgba(0,0,0,0)',
             font=dict(family="Zen Maru Gothic, sans-serif", size=14, color="#5c4b51")
         )
-        st.plotly_chart(fig_m, use_container_width=True)
+        st.plotly_chart(fig_m, use_container_width=True, key="fig_month_pie")
 
         st.markdown("---")
         st.markdown("##### 📈 本月消費列表明細")
-
+        
         m_col1, m_col2 = st.columns(2)
         with m_col1:
             m_cat_filter = st.selectbox("🔍 按分類查看：", ["✨ 全部分類"] + CATEGORIES, key="m_cat")
         with m_col2:
             m_sort_order = st.selectbox("⏳ 月度列表排序方式：", ["📅 最新日期在前", "📅 最舊日期在前"], key="m_sort")
-
+        
         m_display = m_df.copy()
         if m_cat_filter != "✨ 全部分類":
             m_display = m_display[m_display["category"] == m_cat_filter]
-
+            
         m_is_asc = (m_sort_order == "📅 最舊日期在前")
         m_display = m_display.sort_values(by="date", ascending=m_is_asc)
-
-        # 維持表格展示，前方提供修改按鈕觸發小視窗
+        
         m_expenses = m_display.to_dict('records')
         prefix_m = "m_db" if st.session_state.logged_in else "m_guest"
-
-        for rec in m_expenses:
-            rec_id = rec.get("id", rec.get("date") + rec.get("item"))
-
+        
+        for idx, rec in enumerate(m_expenses):
+            rec_id = rec.get("id", idx)
+            
             c_btn, c_date, c_item, c_cat, c_orig, c_twd = st.columns([1, 2, 3, 2, 2.5, 2])
             with c_btn:
-                if st.button("✏️", key=f"m_edit_{prefix_m}_{rec_id}"):
-                    edit_expense_dialog(rec, rec.get("id", 0), prefix_m)
+                if st.button("✏️", key=f"btn_m_edit_{prefix_m}_{rec_id}_{idx}"):
+                    edit_expense_dialog(rec, rec_id, prefix_m)
             with c_date:
                 st.write(f"🗓️ {rec['date']}")
             with c_item:
@@ -602,17 +598,16 @@ with tab_month:
 with tab_year:
     if not df.empty:
         all_years = sorted(df['year'].unique(), reverse=True)
-        selected_year = st.selectbox("🎆 請選擇年份：", all_years)
-
+        selected_year = st.selectbox("🎆 請選擇年份：", all_years, key="select_year_key")
+        
         y_df = df[df['year'] == selected_year]
         year_total = y_df['amount_twd'].sum()
-
+        
         st.markdown(f'<div class="stat-card" style="border-color: #a8e6cf;"><div class="stat-label" style="color: #4e8d7c;">🌟 {selected_year} 全年累積總消費 (已折算台幣)</div><div class="stat-value" style="color: #42b883;">NT$ {year_total:,}</div></div>', unsafe_allow_html=True)
-
+        
         st.markdown("##### 📊 全年分類消費占比 (馬卡龍圓餅圖)")
         cat_y = y_df.groupby('category')['amount_twd'].sum().reset_index()
-
-        # 繪製可愛馬卡龍風甜甜圈圓餅圖
+        
         fig_y = px.pie(
             cat_y, 
             values='amount_twd', 
@@ -632,35 +627,34 @@ with tab_year:
             plot_bgcolor='rgba(0,0,0,0)',
             font=dict(family="Zen Maru Gothic, sans-serif", size=14, color="#5c4b51")
         )
-        st.plotly_chart(fig_y, use_container_width=True)
+        st.plotly_chart(fig_y, use_container_width=True, key="fig_year_pie")
 
         st.markdown("---")
         st.markdown("##### 📈 全年消費列表明細")
-
+        
         y_col1, y_col2 = st.columns(2)
         with y_col1:
             y_cat_filter = st.selectbox("🔍 按分類查看：", ["✨ 全部分類"] + CATEGORIES, key="y_cat")
         with y_col2:
             y_sort_order = st.selectbox("⏳ 年度列表排序方式：", ["📅 最新日期在前", "📅 最舊日期在前"], key="y_sort")
-
+        
         y_display = y_df.copy()
         if y_cat_filter != "✨ 全部分類":
             y_display = y_display[y_display["category"] == y_cat_filter]
-
+            
         y_is_asc = (y_sort_order == "📅 最舊日期在前")
         y_display = y_display.sort_values(by="date", ascending=y_is_asc)
-
-        # 維持表格展示，前方提供修改按鈕觸發小視窗
+        
         y_expenses = y_display.to_dict('records')
         prefix_y = "y_db" if st.session_state.logged_in else "y_guest"
-
-        for rec in y_expenses:
-            rec_id = rec.get("id", rec.get("date") + rec.get("item"))
-
+        
+        for idx, rec in enumerate(y_expenses):
+            rec_id = rec.get("id", idx)
+            
             c_btn, c_date, c_item, c_cat, c_orig, c_twd = st.columns([1, 2, 3, 2, 2.5, 2])
             with c_btn:
-                if st.button("✏️", key=f"y_edit_{prefix_y}_{rec_id}"):
-                    edit_expense_dialog(rec, rec.get("id", 0), prefix_y)
+                if st.button("✏️", key=f"btn_y_edit_{prefix_y}_{rec_id}_{idx}"):
+                    edit_expense_dialog(rec, rec_id, prefix_y)
             with c_date:
                 st.write(f"🗓️ {rec['date']}")
             with c_item:
