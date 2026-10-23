@@ -351,12 +351,11 @@ def cute_status_dialog(msg_type):
 if st.session_state.show_popup_type:
     cute_status_dialog(st.session_state.show_popup_type)
 
-# 6. 彈出式修改小視窗 (直接將動態加載嵌入彈窗內)
+# 6. 彈出式修改小視窗 (修正：加載完成後不觸發全頁關閉)
 @st.dialog("✏️ 修改記帳紀錄")
 def edit_expense_dialog(rec, rec_id, prefix):
     unique_key = f"dlg_{prefix}_{rec_id}"
     
-    # 紀錄上次選定的幣別與日期
     last_curr_key = f"last_c_{unique_key}"
     last_date_key = f"last_d_{unique_key}"
     rate_val_key = f"r_val_{unique_key}"
@@ -379,30 +378,17 @@ def edit_expense_dialog(rec, rec_id, prefix):
         key=f"c_{unique_key}"
     )
 
-    # 💡 檢測到幣別或日期有被修改：立刻進入「切換中，請稍後...」的動態加載
+    # 💡 檢測到變更時，只在彈窗內部平滑更新數值，不再執行引發關閉視窗的 rerun
     if edit_currency != st.session_state[last_curr_key] or edit_date != st.session_state[last_date_key]:
-        st.markdown("""
-        <div class="popup-box" style="padding: 0.5rem;">
-            <div class="popup-icon" style="font-size: 2rem; margin-bottom: 0.2rem;">🔄✨</div>
-            <h4 style="color: #ff6b81; font-weight: 800; margin: 0;">切換中，請稍後...</h4>
-            <p style="color: #8b7d83; font-size: 0.85rem; margin-top: 0.2rem;">正在為您連線獲取最新匯率數字喔！</p>
-        </div>
-        """, unsafe_allow_html=True)
-        progress_bar = st.progress(0)
-        for i in range(100):
-            time.sleep(0.012)
-            progress_bar.progress(i + 1)
-            
-        # 動畫結束後，更新最新匯率並同步狀態
-        new_calculated_rate = fetch_rate_by_date(edit_currency, edit_date)
-        st.session_state[rate_val_key] = float(new_calculated_rate)
-        st.session_state[last_curr_key] = edit_currency
-        st.session_state[last_date_key] = edit_date
-        st.rerun()
+        with st.spinner("🔄✨ 切換中，請稍後... 正在計算最新匯率"):
+            new_calculated_rate = fetch_rate_by_date(edit_currency, edit_date)
+            st.session_state[rate_val_key] = float(new_calculated_rate)
+            st.session_state[last_curr_key] = edit_currency
+            st.session_state[last_date_key] = edit_date
+            time.sleep(1.0)
 
     edit_amount_str = st.text_input("修改金額", value=str(rec["original_amount"]), key=f"a_{unique_key}")
     
-    # 填入最新且正確的匯率
     rate_val_input = st.number_input(
         "使用匯率 (可手動調整)", 
         value=st.session_state[rate_val_key], 
@@ -619,7 +605,6 @@ with tab_input:
     st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
 
-    # 主頁面新增紀錄的動態追蹤狀態
     if "main_last_c" not in st.session_state:
         st.session_state.main_last_c = "NT 新台幣"
     if "main_last_d" not in st.session_state:
@@ -633,24 +618,12 @@ with tab_input:
     with input_col2:
         currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=0, key=f"curr_{reset_key}")
 
-    # 💡 主頁面檢測幣別或日期切換，呈現加載
     if currency != st.session_state.main_last_c or input_date != st.session_state.main_last_d:
-        st.markdown("""
-        <div class="popup-box" style="padding: 0.5rem;">
-            <div class="popup-icon" style="font-size: 2rem; margin-bottom: 0.2rem;">🔄✨</div>
-            <h4 style="color: #ff6b81; font-weight: 800; margin: 0;">切換中，請稍後...</h4>
-            <p style="color: #8b7d83; font-size: 0.85rem; margin-top: 0.2rem;">正在為您計算最新匯率數字喔！</p>
-        </div>
-        """, unsafe_allow_html=True)
-        main_bar = st.progress(0)
-        for i in range(100):
-            time.sleep(0.012)
-            main_bar.progress(i + 1)
-            
-        st.session_state.main_live_rate = fetch_rate_by_date(currency, input_date)
-        st.session_state.main_last_c = currency
-        st.session_state.main_last_d = input_date
-        st.rerun()
+        with st.spinner("🔄✨ 切換中，請稍後... 正在計算最新匯率"):
+            st.session_state.main_live_rate = fetch_rate_by_date(currency, input_date)
+            st.session_state.main_last_c = currency
+            st.session_state.main_last_d = input_date
+            time.sleep(1.0)
 
     current_live_rate = st.session_state.main_live_rate
 
