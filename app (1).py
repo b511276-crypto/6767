@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
 import requests
 import sqlite3
 import hashlib
@@ -61,7 +61,7 @@ def authenticate_user(username, password):
     c.execute("SELECT password_hash FROM users WHERE username = ?", (username,))
     row = c.fetchone()
     conn.close()
-    if row and row[0] == hashlib.sha256(password.encode()).hexdigest():
+    if row and row[0] == hash_password(password):
         return True
     return False
 
@@ -122,19 +122,38 @@ CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", 
 
 MACARON_COLORS = ['#ffb7c5', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#e0bbe4', '#fec8d8']
 
-def fetch_realtime_rate(currency_label):
+# 抓取指定日期的歷史匯率 (若為未來日期則抓取最新即時匯率)
+def fetch_rate_by_date(currency_label, target_date):
     if currency_label == "NT 新台幣":
         return 1.0, True
+    
     target_code = CURRENCY_MAP[currency_label]["code"]
-    try:
-        url = f"https://open.er-api.com/v6/latest/{target_code}"
-        res = requests.get(url, timeout=3)
-        if res.status_code == 200:
-            data = res.json()
-            twd_rate = data["rates"]["TWD"]
-            return round(float(twd_rate), 4), True
-    except Exception:
-        pass
+    today = date.today()
+    
+    # 未來日期：呼叫最新即時 API
+    if target_date > today:
+        try:
+            url = f"https://open.er-api.com/v6/latest/{target_code}"
+            res = requests.get(url, timeout=3)
+            if res.status_code == 200:
+                data = res.json()
+                twd_rate = data["rates"]["TWD"]
+                return round(float(twd_rate), 4), True
+        except Exception:
+            pass
+    # 歷史或今日日期：呼叫歷史匯率 API (Frankfurter API)
+    else:
+        try:
+            date_str = target_date.strftime("%Y-%m-%d")
+            url = f"https://api.frankfurter.app/{date_str}?from={target_code}&to=TWD"
+            res = requests.get(url, timeout=3)
+            if res.status_code == 200:
+                data = res.json()
+                twd_rate = data["rates"]["TWD"]
+                return round(float(twd_rate), 4), True
+        except Exception:
+            pass
+            
     return CURRENCY_MAP[currency_label]["fallback"], False
 
 # 3. 馬卡龍風格 CSS 樣式
@@ -260,7 +279,8 @@ def edit_expense_dialog(rec, rec_id, prefix):
             elif edit_amount is None or edit_amount <= 0:
                 st.warning("⚠️ 請輸入有效的數字金額！")
             else:
-                rate, _ = fetch_realtime_rate(edit_currency)
+                # 自動根據修改後的日期抓取歷史或即時匯率
+                rate, _ = fetch_rate_by_date(edit_currency, edit_date)
                 amount_twd_val = int(round(edit_amount * rate))
                 formatted_orig = str(int(edit_amount)) if edit_amount.is_integer() else str(edit_amount)
                 
@@ -274,7 +294,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
                         category=edit_category,
                         orig_amt=formatted_orig,
                         currency=edit_currency,
-                        rate=round(rate, 2),
+                        rate=round(rate, 4),
                         amt_twd=amount_twd_val
                     )
                 else:
@@ -286,7 +306,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
                         "category": edit_category,
                         "original_amount": formatted_orig,
                         "currency": edit_currency,
-                        "rate_used": round(rate, 2),
+                        "rate_used": round(rate, 4),
                         "amount_twd": amount_twd_val
                     }
                 st.toast("✅ 資料修改成功！", icon="✨")
@@ -301,7 +321,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
             st.toast("🗑️ 已成功刪除該筆資料！", icon="✨")
             st.rerun()
 
-# 6. 通用圖表繪製函式（小區塊自動拉出外部顯示文字）
+# 6. 通用圖表繪製函式
 def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=False):
     chart_df = df_data.copy()
     
@@ -314,7 +334,6 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
     if chart_type in ["🥧 圓餅圖 (Pie)", "🍩 環形圖 (Donut)"]:
         hole_val = 0.45 if chart_type == "🍩 環形圖 (Donut)" else 0
         fig = px.pie(chart_df, values=y_col, names=x_target, hole=hole_val, color_discrete_sequence=MACARON_COLORS)
-        # ✨ 改為 auto：大扇形在內部顯示，小扇形自動拉到外面並加連線指示
         fig.update_traces(textposition='auto', textinfo='percent+label')
     elif chart_type == "📊 柱狀圖 (Bar)":
         fig = px.bar(chart_df, x=x_target, y=y_col, color=x_target, color_discrete_sequence=MACARON_COLORS, text_auto=',d')
@@ -483,8 +502,8 @@ with tab_input:
             elif input_amount is None or input_amount <= 0:
                 st.warning("⚠️ 請輸入有效的數字金額喔！")
             else:
-                with st.spinner("🌐 正在獲取國際即時匯率..."):
-                    rate, is_live = fetch_realtime_rate(currency)
+                with st.spinner("🌐 正在獲取對應日期的國際匯率..."):
+                    rate, is_live = fetch_rate_by_date(currency, input_date)
                 
                 date_str = input_date.strftime("%Y-%m-%d")
                 year_num = input_date.year
@@ -503,7 +522,7 @@ with tab_input:
                         category=input_category,
                         orig_amt=formatted_orig,
                         currency=currency,
-                        rate=round(rate, 2),
+                        rate=round(rate, 4),
                         amt_twd=amount_twd_val
                     )
                 else:
@@ -515,7 +534,7 @@ with tab_input:
                         "category": input_category,
                         "original_amount": formatted_orig,
                         "currency": currency,
-                        "rate_used": round(rate, 2),
+                        "rate_used": round(rate, 4),
                         "amount_twd": amount_twd_val
                     }
                     st.session_state.guest_expenses.append(new_rec)
@@ -550,7 +569,7 @@ with tab_input:
             if rec['currency'] == "NT 新台幣":
                 right_amount = f"NT {rec['amount_twd']:,}"
             else:
-                right_amount = f"{rec['currency']} {rec['original_amount']} (折算 NT {rec['amount_twd']:,}，匯率 {rec['rate_used']:.2f})"
+                right_amount = f"{rec['currency']} {rec['original_amount']} (折算 NT {rec['amount_twd']:,}，匯率 {rec['rate_used']:.4f})"
             
             list_col1, list_col2, list_col3 = st.columns([5, 4, 1.5])
             with list_col1:
