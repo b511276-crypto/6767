@@ -109,7 +109,6 @@ def delete_expense_db(expense_id):
 
 init_db()
 
-# 幣別對應表
 CURRENCY_MAP = {
     "NT 新台幣": {"code": "TWD", "fallback": 1.0},
     "US 美元": {"code": "USD", "fallback": 32.62},
@@ -124,54 +123,58 @@ CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", 
 
 MACARON_COLORS = ['#ffb7c5', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#e0bbe4', '#fec8d8']
 
-# ⚡ 優化版匯率抓取：縮短 timeout 防止網頁卡死
+# 🎯 雙重精準歷史匯率引擎
 @st.cache_data(ttl=3600)
-def fetch_bot_rate(currency_code, target_date):
-    if currency_code == "TWD":
+def fetch_rate_by_date(currency_label, target_date):
+    if currency_label == "NT 新台幣":
         return 1.0
-
+        
+    code = CURRENCY_MAP[currency_label]["code"]
     today = date.today()
     check_date = min(target_date, today)
-
+    
     headers = {"User-Agent": "Mozilla/5.0"}
 
-    # 1. 嘗試台銀歷史 CSV (縮短至 1.5 秒超時)
-    for i in range(3):
-        curr_date = check_date - timedelta(days=i)
-        date_str = curr_date.strftime("%Y%m%d")
-        url = f"https://rate.bot.com.tw/xrt/flcsv/0/day/{date_str}"
-        try:
-            res = requests.get(url, headers=headers, timeout=1.5)
-            if res.status_code == 200 and "牌告匯率" in res.text:
-                lines = res.text.splitlines()
-                for line in lines:
-                    parts = line.split(',')
-                    if len(parts) > 12 and currency_code in parts[0]:
-                        spot_sell = parts[12].strip()
-                        cash_sell = parts[13].strip()
-                        rate_val = spot_sell if spot_sell and spot_sell != '-' else cash_sell
-                        if rate_val and rate_val != '-':
-                            return round(float(rate_val), 4)
-        except Exception:
-            pass
+    # 1. 如果是近一年內的日期，先抓台灣銀行歷史 CSV
+    if (today - check_date).days <= 365:
+        for i in range(5):
+            curr_date = check_date - timedelta(days=i)
+            date_str = curr_date.strftime("%Y%m%d")
+            url = f"https://rate.bot.com.tw/xrt/flcsv/0/day/{date_str}"
+            try:
+                res = requests.get(url, headers=headers, timeout=2)
+                if res.status_code == 200 and "牌告匯率" in res.text:
+                    lines = res.text.splitlines()
+                    for line in lines:
+                        parts = line.split(',')
+                        if len(parts) > 12 and code in parts[0]:
+                            spot_sell = parts[12].strip()
+                            cash_sell = parts[13].strip()
+                            rate_val = spot_sell if spot_sell and spot_sell != '-' else cash_sell
+                            if rate_val and rate_val != '-':
+                                return round(float(rate_val), 4)
+            except Exception:
+                pass
 
-    # 2. 備用：Frankfurter 歷史 API
-    if target_date <= today:
-        try:
-            d_str = target_date.strftime("%Y-%m-%d")
-            url = f"https://api.frankfurter.dev/v1/{d_str}?from={currency_code}&to=TWD"
-            res = requests.get(url, timeout=1.5)
-            if res.status_code == 200:
-                data = res.json()
-                if "rates" in data and "TWD" in data["rates"]:
-                    return round(float(data["rates"]["TWD"]), 4)
-        except Exception:
-            pass
+    # 2. 如果超過 1 年或台銀未抓到，使用 Frankfurter API (ECB 歷史官方庫，支援多年歷史)
+    if check_date <= today:
+        for i in range(5):
+            curr_date = check_date - timedelta(days=i)
+            d_str = curr_date.strftime("%Y-%m-%d")
+            url = f"https://api.frankfurter.dev/v1/{d_str}?from={code}&to=TWD"
+            try:
+                res = requests.get(url, timeout=2)
+                if res.status_code == 200:
+                    data = res.json()
+                    if "rates" in data and "TWD" in data["rates"]:
+                        return round(float(data["rates"]["TWD"]), 4)
+            except Exception:
+                pass
 
-    # 3. 備用：即時 API
+    # 3. 未來日期或 API 異常時使用即時匯率
     try:
-        fallback_url = f"https://open.er-api.com/v6/latest/{currency_code}"
-        res = requests.get(fallback_url, timeout=1.5)
+        url = f"https://open.er-api.com/v6/latest/{code}"
+        res = requests.get(url, timeout=2)
         if res.status_code == 200:
             data = res.json()
             if "rates" in data and "TWD" in data["rates"]:
@@ -179,33 +182,21 @@ def fetch_bot_rate(currency_code, target_date):
     except Exception:
         pass
 
-    return None
-
-def fetch_rate_by_date(currency_label, target_date):
-    if currency_label == "NT 新台幣":
-        return 1.0, True
-
-    code = CURRENCY_MAP[currency_label]["code"]
-    bot_rate = fetch_bot_rate(code, target_date)
-
-    if bot_rate is not None:
-        return bot_rate, True
-
-    return CURRENCY_MAP[currency_label]["fallback"], False
+    return CURRENCY_MAP[currency_label]["fallback"]
 
 # 3. 馬卡龍風格 CSS 樣式
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Sans+TC:wght@500;700;900&display=swap');
-
+    
     html, body, [class*="css"], .stApp { 
         background-color: #fffaf5; 
         font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif !important; 
         color: #5c4b51; 
     }
-
+    
     .stMarkdown a, .cute-header a { display: none !important; }
-
+    
     .cute-header {
         background: linear-gradient(135deg, #ffb7c5, #ffe4e1);
         padding: 2.2rem 1.5rem;
@@ -215,7 +206,7 @@ st.markdown("""
         margin-bottom: 2rem;
         width: 100%;
     }
-
+    
     .cute-header h1 { 
         font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif;
         font-weight: 800;
@@ -228,7 +219,7 @@ st.markdown("""
         line-height: 1.3;
         text-align: center;
     }
-
+    
     .cute-header p { 
         font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif;
         color: #7d5a60; 
@@ -238,7 +229,7 @@ st.markdown("""
         font-weight: 700; 
         text-align: center;
     }
-
+    
     .sidebar-user-card {
         background-color: #ffffff;
         border: 2px solid #ffd1dc;
@@ -248,7 +239,7 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(255, 209, 220, 0.25);
         margin-bottom: 1.2rem;
     }
-
+    
     .sidebar-user-card h3 {
         color: #ff6b81;
         font-size: 1.3rem;
@@ -267,7 +258,7 @@ st.markdown("""
     }
     .stat-label { font-size: 0.95rem; color: #8b7d83; font-weight: 700; }
     .stat-value { font-size: 2.1rem; font-weight: 800; color: #ff6b81; margin-top: 0.3rem; }
-
+    
     .amount-right-align {
         text-align: right !important;
         font-weight: 700;
@@ -295,12 +286,16 @@ if 'confirm_delete_account' not in st.session_state:
 @st.dialog("✏️ 修改記帳紀錄")
 def edit_expense_dialog(rec, rec_id, prefix):
     unique_key = f"dlg_{prefix}_{rec_id}"
-
+    
     edit_date = st.date_input("修改日期", datetime.strptime(rec["date"], "%Y-%m-%d"), key=f"d_{unique_key}")
     edit_item = st.text_input("修改項目名稱", value=rec["item"], key=f"i_{unique_key}")
     edit_category = st.selectbox("修改分類", CATEGORIES, index=CATEGORIES.index(rec["category"]), key=f"cat_{unique_key}")
     edit_currency = st.selectbox("修改幣別", list(CURRENCY_MAP.keys()), index=list(CURRENCY_MAP.keys()).index(rec["currency"]), key=f"c_{unique_key}")
     edit_amount_str = st.text_input("修改金額", value=str(rec["original_amount"]), key=f"a_{unique_key}")
+    
+    # 預設抓取歷史匯率，並允許手動修改
+    fetched_rate = fetch_rate_by_date(edit_currency, edit_date)
+    rate_val_input = st.number_input("使用匯率 (可手動調整)", value=float(rec.get("rate_used", fetched_rate)), format="%.4f", key=f"r_{unique_key}")
 
     st.markdown("---")
     btn_col1, btn_col2 = st.columns(2)
@@ -316,10 +311,9 @@ def edit_expense_dialog(rec, rec_id, prefix):
             elif edit_amount is None or edit_amount <= 0:
                 st.warning("⚠️ 請輸入有效的數字金額！")
             else:
-                rate, _ = fetch_rate_by_date(edit_currency, edit_date)
-                amount_twd_val = int(round(edit_amount * rate))
+                amount_twd_val = int(round(edit_amount * rate_val_input))
                 formatted_orig = str(int(edit_amount)) if edit_amount.is_integer() else str(edit_amount)
-
+                
                 if st.session_state.logged_in:
                     update_expense_db(
                         expense_id=rec_id,
@@ -330,7 +324,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
                         category=edit_category,
                         orig_amt=formatted_orig,
                         currency=edit_currency,
-                        rate=round(rate, 4),
+                        rate=round(rate_val_input, 4),
                         amt_twd=amount_twd_val
                     )
                 else:
@@ -342,7 +336,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
                         "category": edit_category,
                         "original_amount": formatted_orig,
                         "currency": edit_currency,
-                        "rate_used": round(rate, 4),
+                        "rate_used": round(rate_val_input, 4),
                         "amount_twd": amount_twd_val
                     }
                 st.toast("✅ 資料修改成功！", icon="✨")
@@ -360,7 +354,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
 # 6. 通用圖表繪製函式
 def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=False):
     chart_df = df_data.copy()
-
+    
     if is_month_x and x_col == 'month':
         chart_df['month_label'] = chart_df['month'].apply(lambda x: f"{int(x.split('-')[1])}月" if '-' in str(x) else str(x))
         x_target = 'month_label'
@@ -386,7 +380,7 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
         fig.update_layout(xaxis_title="", yaxis_title="金額 (NT$)")
 
     fig.update_xaxes(type='category')
-
+    
     if chart_type in ["📊 柱狀圖 (Bar)", "📈 折線圖 (Line)"] and not chart_df.empty and y_col in chart_df.columns:
         max_y = chart_df[y_col].max()
         fig.update_yaxes(range=[0, max_y * 1.25], tickformat=',d', nticks=6)
@@ -403,10 +397,10 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
 # 7. 側邊欄：登入與註冊系統
 with st.sidebar:
     st.title("🌸 帳號管理")
-
+    
     if not st.session_state.logged_in:
         auth_mode = st.radio("選擇操作", ["🔑 登入", "✨ 註冊新帳號"])
-
+        
         if auth_mode == "🔑 登入":
             st.subheader("使用者登入")
             login_user = st.text_input("帳號", key="login_user")
@@ -419,7 +413,7 @@ with st.sidebar:
                     st.rerun()
                 else:
                     st.error("⚠️ 帳號或密碼錯誤喔！")
-
+                    
         else:
             st.subheader("建立新帳號")
             reg_user = st.text_input("設定帳號", key="reg_user")
@@ -438,16 +432,16 @@ with st.sidebar:
             <h3>🌸 {st.session_state.username}</h3>
         </div>
         """, unsafe_allow_html=True)
-
+        
         if st.button("🚪 安全登出", use_container_width=True):
             st.session_state.logged_in = False
             st.session_state.username = ""
             st.session_state.confirm_delete_account = False
             st.toast("👋 已成功登出！", icon="✨")
             st.rerun()
-
+            
         st.markdown("---")
-
+        
         if not st.session_state.confirm_delete_account:
             if st.button("🚨 註銷帳號", use_container_width=True):
                 st.session_state.confirm_delete_account = True
@@ -511,18 +505,18 @@ tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨
 with tab_input:
     st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
-
+    
     with st.form("add_expense_form", clear_on_submit=False):
         col1, col2 = st.columns(2)
         with col1:
             input_date = st.date_input("選擇日期 (年/月/日)", datetime.now().date(), key=f"date_{reset_key}")
             input_item = st.text_input("消費項目", placeholder="例如：日本拉麵 🍜", key=f"item_{reset_key}")
             currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=0, key=f"curr_{reset_key}")
-
+            
         with col2:
             input_category = st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=f"cat_{reset_key}")
             input_amount_str = st.text_input("花費金額", placeholder="請輸入金額...", key=f"amt_{reset_key}")
-
+        
         submit_btn = st.form_submit_button("💖 儲存這筆紀錄")
 
         if submit_btn:
@@ -538,16 +532,16 @@ with tab_input:
             elif input_amount is None or input_amount <= 0:
                 st.warning("⚠️ 請輸入有效的數字金額喔！")
             else:
-                with st.spinner("🌐 正在獲取對應日期的牌告匯率..."):
-                    rate, is_live = fetch_rate_by_date(currency, input_date)
-
+                with st.spinner("🌐 正在獲取對應日期的真實歷史匯率..."):
+                    rate = fetch_rate_by_date(currency, input_date)
+                
                 date_str = input_date.strftime("%Y-%m-%d")
                 year_num = input_date.year
                 month_str = input_date.strftime("%Y-%m")
-
+                
                 amount_twd_val = int(round(input_amount * rate))
                 formatted_orig = str(int(input_amount)) if input_amount.is_integer() else str(input_amount)
-
+                
                 if st.session_state.logged_in:
                     add_expense_db(
                         username=st.session_state.username,
@@ -587,26 +581,26 @@ with tab_input:
             selected_cat_filter = st.selectbox("🔍 按分類查看：", ["✨ 全部分類"] + CATEGORIES, key="input_cat_filter")
         with filter_col2:
             sort_order = st.selectbox("⏳ 日期排序方式：", ["📅 最新日期在前", "📅 最舊日期在前"], key="input_sort_order")
-
+        
         expenses_list = df.to_dict('records')
         if selected_cat_filter != "✨ 全部分類":
             expenses_list = [item for item in expenses_list if item["category"] == selected_cat_filter]
-
+            
         is_asc = (sort_order == "📅 最舊日期在前")
         expenses_list.sort(key=lambda x: x["date"], reverse=not is_asc)
-
+        
         display_list = expenses_list[:10]
         prefix = "db" if st.session_state.logged_in else "guest"
-
+        
         for idx, rec in enumerate(display_list):
             rec_id = rec.get("id", idx)
-
+            
             left_info = f"🗓️ {rec['date']} | {rec['category']} | {rec['item']}"
             if rec['currency'] == "NT 新台幣":
                 right_amount = f"NT {rec['amount_twd']:,}"
             else:
                 right_amount = f"{rec['currency']} {rec['original_amount']} (折算 NT {rec['amount_twd']:,}，匯率 {rec['rate_used']:.4f})"
-
+            
             list_col1, list_col2, list_col3 = st.columns([5, 4, 1.5])
             with list_col1:
                 st.write(f"**{left_info}**")
@@ -616,7 +610,7 @@ with tab_input:
                 if st.button("✏️ 修改", key=f"btn_edit_{prefix}_{rec_id}", use_container_width=True):
                     edit_expense_dialog(rec, rec_id, prefix)
             st.markdown("<hr style='margin: 0.3rem 0; border: none; border-top: 1px dashed #ffd1dc;'>", unsafe_allow_html=True)
-
+            
         if len(expenses_list) > 10:
             st.caption("💡 僅顯示最近 10 筆紀錄，完整的歷史資料請切換至「月度」或「年度」分頁查看喔！")
     else:
@@ -630,44 +624,44 @@ with tab_month:
         if now_month_str not in all_months:
             all_months.insert(0, now_month_str)
         default_m_idx = all_months.index(now_month_str)
-
+        
         m_sel_col1, m_sel_col2 = st.columns(2)
         with m_sel_col1:
             selected_month = st.selectbox("🗓️ 請選擇月份：", all_months, index=default_m_idx, key="select_month_key")
         with m_sel_col2:
             m_chart_type = st.selectbox("📊 選擇圖表類型：", ["🍩 環形圖 (Donut)", "🥧 圓餅圖 (Pie)", "📊 柱狀圖 (Bar)"], index=0, key="m_chart_type")
-
+        
         m_df = df[df['month'] == selected_month]
         month_total = m_df['amount_twd'].sum() if not m_df.empty else 0
-
+        
         st.markdown(f'<div class="stat-card"><div class="stat-label">🌸 {selected_month} 當月累積總消費 (已折算台幣)</div><div class="stat-value">NT$ {month_total:,}</div></div>', unsafe_allow_html=True)
-
+        
         if not m_df.empty:
             cat_m = m_df.groupby('category')['amount_twd'].sum().reset_index()
             render_custom_chart(cat_m, 'category', 'amount_twd', m_chart_type, "fig_month")
 
             st.markdown("---")
             st.markdown("##### 📈 本月消費列表明細")
-
+            
             m_col1, m_col2 = st.columns(2)
             with m_col1:
                 m_cat_filter = st.selectbox("🔍 按分類查看：", ["✨ 全部分類"] + CATEGORIES, key="m_cat")
             with m_col2:
                 m_sort_order = st.selectbox("⏳ 月度列表排序方式：", ["📅 最新日期在前", "📅 最舊日期在前"], key="m_sort")
-
+            
             m_display = m_df.copy()
             if m_cat_filter != "✨ 全部分類":
                 m_display = m_display[m_display["category"] == m_cat_filter]
-
+                
             m_is_asc = (m_sort_order == "📅 最舊日期在前")
             m_display = m_display.sort_values(by="date", ascending=m_is_asc)
-
+            
             m_expenses = m_display.to_dict('records')
             prefix_m = "m_db" if st.session_state.logged_in else "m_guest"
-
+            
             for idx, rec in enumerate(m_expenses):
                 rec_id = rec.get("id", idx)
-
+                
                 c_btn, c_date, c_item, c_cat, c_orig, c_twd = st.columns([1, 2, 3, 2, 2.5, 2])
                 with c_btn:
                     if st.button("✏️", key=f"btn_m_edit_{prefix_m}_{rec_id}_{idx}"):
@@ -696,7 +690,7 @@ with tab_year:
         if now_year_num not in all_years:
             all_years.insert(0, now_year_num)
         default_y_idx = all_years.index(now_year_num)
-
+        
         y_sel_col1, y_sel_col2, y_sel_col3 = st.columns(3)
         with y_sel_col1:
             selected_year = st.selectbox("🎆 請選擇年份：", all_years, index=default_y_idx, key="select_year_key")
@@ -707,12 +701,12 @@ with tab_year:
                 y_chart_type = st.selectbox("📊 選擇圖表類型：", ["📈 折線圖 (Line)", "📊 柱狀圖 (Bar)"], index=0, key="y_chart_type")
             else:
                 y_chart_type = st.selectbox("📊 選擇圖表類型：", ["🍩 環形圖 (Donut)", "🥧 圓餅圖 (Pie)", "📊 柱狀圖 (Bar)"], index=0, key="y_chart_type")
-
+        
         y_df = df[df['year'] == selected_year]
         year_total = y_df['amount_twd'].sum() if not y_df.empty else 0
-
+        
         st.markdown(f'<div class="stat-card" style="border-color: #a8e6cf;"><div class="stat-label" style="color: #4e8d7c;">🌟 {selected_year} 全年累積總消費 (已折算台幣)</div><div class="stat-value" style="color: #42b883;">NT$ {year_total:,}</div></div>', unsafe_allow_html=True)
-
+        
         if not y_df.empty:
             if y_view_mode == "🗓️ 各月份消費情況":
                 data_y = y_df.groupby('month')['amount_twd'].sum().reset_index().sort_values(by='month')
@@ -723,26 +717,26 @@ with tab_year:
 
             st.markdown("---")
             st.markdown("##### 📈 全年消費列表明細")
-
+            
             y_col1, y_col2 = st.columns(2)
             with y_col1:
                 y_cat_filter = st.selectbox("🔍 按分類查看：", ["✨ 全部分類"] + CATEGORIES, key="y_cat")
             with y_col2:
                 y_sort_order = st.selectbox("⏳ 年度列表排序方式：", ["📅 最新日期在前", "📅 最舊日期在前"], key="y_sort")
-
+            
             y_display = y_df.copy()
             if y_cat_filter != "✨ 全部分類":
                 y_display = y_display[y_display["category"] == y_cat_filter]
-
+                
             y_is_asc = (y_sort_order == "📅 最舊日期在前")
             y_display = y_display.sort_values(by="date", ascending=y_is_asc)
-
+            
             y_expenses = y_display.to_dict('records')
             prefix_y = "y_db" if st.session_state.logged_in else "y_guest"
-
+            
             for idx, rec in enumerate(y_expenses):
                 rec_id = rec.get("id", idx)
-
+                
                 c_btn, c_date, c_item, c_cat, c_orig, c_twd = st.columns([1, 2, 3, 2, 2.5, 2])
                 with c_btn:
                     if st.button("✏️", key=f"btn_y_edit_{prefix_y}_{rec_id}_{idx}"):
