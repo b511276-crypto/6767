@@ -399,6 +399,13 @@ st.markdown("""
         box-shadow: 0 6px 16px rgba(201, 67, 83, 0.35) !important;
     }
 
+    /* 縮小星星常用按鈕之邊界與排版 */
+    div[data-testid="stColumn"] button[help="點擊設定/取消為常用項目"] {
+        padding: 2px 6px !important;
+        font-size: 0.85rem !important;
+        min-height: 32px !important;
+    }
+
     #MainMenu {visibility: hidden;} footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
@@ -420,16 +427,6 @@ if 'confirm_delete_account' not in st.session_state:
     st.session_state.confirm_delete_account = False
 if 'show_popup_type' not in st.session_state:
     st.session_state.show_popup_type = None
-
-# 用來做預填帶入的欄位 state
-if 'preset_item' not in st.session_state:
-    st.session_state.preset_item = ""
-if 'preset_cat' not in st.session_state:
-    st.session_state.preset_cat = None
-if 'preset_amt' not in st.session_state:
-    st.session_state.preset_amt = ""
-if 'preset_curr' not in st.session_state:
-    st.session_state.preset_curr = "NT 新台幣"
 
 # 🌟 5. 可愛的提示視窗
 @st.dialog("🌸 系統訊息")
@@ -482,7 +479,6 @@ def avatar_upload_dialog():
     if uploaded_file is not None:
         try:
             image = Image.open(uploaded_file).convert("RGBA")
-            # 裁切為正方形
             min_dim = min(image.size)
             left = (image.width - min_dim) / 2
             top = (image.height - min_dim) / 2
@@ -491,7 +487,6 @@ def avatar_upload_dialog():
             image = image.crop((left, top, right, bottom))
             image = image.resize((200, 200), Image.LANCZOS)
             
-            # 製作圓形遮罩
             mask = Image.new('L', (200, 200), 0)
             draw = ImageDraw.Draw(mask)
             draw.ellipse((0, 0, 200, 200), fill=255)
@@ -791,36 +786,41 @@ else:
 # 13. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：單一原生輸入框，支援常用下拉預填 ---
+# --- 分頁 1：常用選單置於「新增一筆消費」旁邊並預填表單 ---
 with tab_input:
-    st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
 
-    # 🌟 ⭐ 常用下拉選單邏輯
-    fav_options = ["不選擇（手動輸入）"]
+    # 準備常用項目選項資料
+    fav_options = ["不選擇常用（手動輸入）"]
     fav_items_map = {}
     
-    if not df.empty:
-        fav_df = df[df.get("is_favorite", 0) == 1]
+    if not df.empty and "is_favorite" in df.columns:
+        fav_df = df[df["is_favorite"] == 1]
         for _, f_row in fav_df.iterrows():
             lbl = f"⭐ {f_row['item']} | {f_row['category']} | {f_row['currency']} {f_row['original_amount']}"
-            fav_options.append(lbl)
-            fav_items_map[lbl] = f_row
+            if lbl not in fav_items_map:
+                fav_options.append(lbl)
+                fav_items_map[lbl] = f_row
 
-    selected_fav = st.selectbox("⭐ 常用消費（選擇後自動填入文字與金額，不會直接送出）：", fav_options, key=f"fav_select_{reset_key}")
-    
-    # 選擇常用後動態賦予預填值
-    if selected_fav != "不選擇（手動輸入）" and selected_fav in fav_items_map:
+    # 📍 標題與「常用選單」放在同一列（並排）
+    header_col1, header_col2 = st.columns([1.2, 1])
+    with header_col1:
+        st.subheader("💮 新增一筆消費")
+    with header_col2:
+        selected_fav = st.selectbox("常用", fav_options, key=f"fav_select_{reset_key}", label_visibility="visible")
+
+    # 根據選取的常用項目，自動賦予預設填入值
+    if selected_fav != "不選擇常用（手動輸入）" and selected_fav in fav_items_map:
         f_data = fav_items_map[selected_fav]
         default_item_val = f_data["item"]
         default_cat_val = f_data["category"] if f_data["category"] in CATEGORIES else None
         default_amt_val = str(f_data["original_amount"])
         default_curr_val = f_data["currency"] if f_data["currency"] in CURRENCY_MAP else "NT 新台幣"
     else:
-        default_item_val = st.session_state.preset_item
-        default_cat_val = st.session_state.preset_cat
-        default_amt_val = st.session_state.preset_amt
-        default_curr_val = st.session_state.preset_curr
+        default_item_val = ""
+        default_cat_val = None
+        default_amt_val = ""
+        default_curr_val = "NT 新台幣"
 
     def on_change_main_input():
         st.session_state.show_popup_type = "switching"
@@ -937,7 +937,7 @@ with tab_input:
             else:
                 right_amount = f"{rec['currency']} {rec['original_amount']} (折算 NT {rec['amount_twd']:,}，匯率 {rec['rate_used']:.4f})"
             
-            list_col1, list_col2, list_col3, list_col4 = st.columns([4.5, 4, 1.2, 1.2])
+            list_col1, list_col2, list_col3, list_col4 = st.columns([5, 3.8, 1.1, 0.8])
             with list_col1:
                 st.write(f"**{left_info}**")
             with list_col2:
@@ -946,6 +946,7 @@ with tab_input:
                 if st.button("✏️ 修改", key=f"btn_edit_{prefix}_{rec_id}", use_container_width=True):
                     edit_expense_dialog(rec, rec_id, prefix)
             with list_col4:
+                # ⭐️ 小型化星星按鈕
                 if st.button(star_icon, key=f"btn_fav_{prefix}_{rec_id}", use_container_width=True, help="點擊設定/取消為常用項目"):
                     if st.session_state.logged_in:
                         new_st = toggle_favorite_db(rec_id, is_fav)
