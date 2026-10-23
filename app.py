@@ -9,7 +9,7 @@ import base64
 from PIL import Image, ImageDraw
 import io
 import plotly.express as px
-from streamlit_cropper import st_cropper  # 引入專業裁切元件
+from streamlit_cropper import st_cropper
 
 # 1. 頁面基本設定
 st.set_page_config(page_title="記帳本", layout="wide")
@@ -387,7 +387,6 @@ def avatar_upload_dialog():
         try:
             img = Image.open(uploaded_file).convert("RGBA")
             
-            # 使用原生互動式裁切器（強烈定位 1:1 正方形比例）
             cropped_img = st_cropper(
                 img,
                 realtime_update=True,
@@ -397,7 +396,6 @@ def avatar_upload_dialog():
             )
             
             if cropped_img is not None:
-                # 裁切圖片並加工成圓形圖片
                 resized_img = cropped_img.resize((200, 200), Image.LANCZOS)
                 mask = Image.new('L', (200, 200), 0)
                 draw = ImageDraw.Draw(mask)
@@ -699,7 +697,7 @@ else:
 # 13. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：對齊右側欄位，並確保選取常用時 100% 填入下方輸入框 ---
+# --- 分頁 1：對齊右側欄位，常用選擇帶入與金額即時計算 ---
 with tab_input:
     reset_key = st.session_state.form_reset_key
 
@@ -715,13 +713,13 @@ with tab_input:
                 fav_options.append(lbl)
                 fav_items_map[lbl] = f_row
 
-    # 綁定元件 Key，確保 Streamlit Session State 能直接改寫值
+    # 綁定元件 Key
     key_item = f"input_item_{reset_key}"
     key_cat = f"input_cat_{reset_key}"
     key_amt = f"input_amt_{reset_key}"
     key_curr = f"input_curr_{reset_key}"
 
-    # 當「常用」下拉選單被選取時，立刻把值寫入 state
+    # 當「常用」下拉選單被選取時，寫入 state
     def on_fav_change():
         selected = st.session_state[f"fav_select_{reset_key}"]
         if selected != "不選擇（手動輸入）" and selected in fav_items_map:
@@ -764,11 +762,14 @@ with tab_input:
         input_category = st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=key_cat)
     
     st.markdown("**花費金額**")
+    
+    # 輸入框（綁定 key_amt 實現動態雙向監聽）
     input_amount_str = st.text_input("請輸入金額...", placeholder="請輸入金額...", key=key_amt, label_visibility="collapsed")
 
-    # 即時計算台幣
+    # ⚡ 即時動態算台幣折算金額
+    val_to_calc = st.session_state.get(key_amt, input_amount_str)
     try:
-        input_amount = float(input_amount_str.strip()) if input_amount_str and input_amount_str.strip() else 0.0
+        input_amount = float(str(val_to_calc).strip()) if val_to_calc and str(val_to_calc).strip() else 0.0
     except ValueError:
         input_amount = 0.0
 
