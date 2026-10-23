@@ -143,7 +143,7 @@ RATESVIEWER_10Y_DB = {
     2025: {"USD": 32.50, "JPY": 0.2120, "CNY": 4.480, "KRW": 0.0230, "EUR": 35.20, "GBP": 41.80}
 }
 
-# 🏛️ 10年 ~ 30年中央銀行外匯長期歷史資訊庫 (擴充至 1995 年)
+# 🏛️ 10年 ~ 30年中央銀行外匯歷史數據庫 (擴充至 1995 年)
 CBC_LONGTERM_DB = {
     2016: {"USD": 32.26, "JPY": 0.2970, "CNY": 4.850, "KRW": 0.0270, "EUR": 35.70, "GBP": 43.60},
     2015: {"USD": 31.89, "JPY": 0.2640, "CNY": 5.080, "KRW": 0.0280, "EUR": 35.30, "GBP": 48.80},
@@ -387,7 +387,6 @@ def edit_expense_dialog(rec, rec_id, prefix):
     def on_change_edit():
         st.session_state.show_popup_type = "switching"
 
-    # 日曆範圍開擴至 1995 年起 (約 30 年前)
     edit_date = st.date_input(
         "修改日期", 
         datetime.strptime(rec["date"], "%Y-%m-%d"), 
@@ -412,7 +411,20 @@ def edit_expense_dialog(rec, rec_id, prefix):
 
     current_calc_rate = fetch_rate_by_date(edit_currency, edit_date)
 
-    edit_amount_str = st.text_input("修改金額", value=str(rec["original_amount"]), key=f"a_{unique_key}")
+    try:
+        init_val = float(rec["original_amount"])
+    except ValueError:
+        init_val = 0.0
+
+    # 使用 number_input 實現打字即時動態連動
+    edit_amount_val = st.number_input(
+        "修改金額", 
+        value=init_val, 
+        min_value=0.0, 
+        step=1.0, 
+        format="%.2f",
+        key=f"a_{unique_key}"
+    )
     
     rate_val_input = st.number_input(
         "使用匯率 (可手動調整)", 
@@ -425,18 +437,13 @@ def edit_expense_dialog(rec, rec_id, prefix):
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
         if st.button("💾 儲存變更", key=f"save_{unique_key}", use_container_width=True, type="primary"):
-            try:
-                edit_amount = float(edit_amount_str) if edit_amount_str.strip() else None
-            except ValueError:
-                edit_amount = None
-
             if not edit_item.strip():
                 st.warning("⚠️ 項目名稱不可空白！")
-            elif edit_amount is None or edit_amount <= 0:
+            elif edit_amount_val <= 0:
                 st.warning("⚠️ 請輸入有效的數字金額！")
             else:
-                amount_twd_val = int(round(edit_amount * rate_val_input))
-                formatted_orig = str(int(edit_amount)) if edit_amount.is_integer() else str(edit_amount)
+                amount_twd_val = int(round(edit_amount_val * rate_val_input))
+                formatted_orig = str(int(edit_amount_val)) if edit_amount_val.is_integer() else str(edit_amount_val)
                 
                 if st.session_state.logged_in:
                     update_expense_db(
@@ -625,7 +632,7 @@ else:
 # 12. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：逐筆輸入與明細 (即時聯動金額 + 擴大日曆) ---
+# --- 分頁 1：逐筆輸入與明細 (真正動態即時金額連動) ---
 with tab_input:
     st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
@@ -635,7 +642,6 @@ with tab_input:
 
     input_col1, input_col2 = st.columns(2)
     with input_col1:
-        # 日曆選擇範圍擴大至 1995 年起 (約 30 年前)
         input_date = st.date_input(
             "選擇日期 (年/月/日)", 
             datetime.now().date(), 
@@ -649,35 +655,26 @@ with tab_input:
 
     current_live_rate = fetch_rate_by_date(currency, input_date)
 
-    # 💡 移出 Form 區域，讓打字能即時觸發折算預覽變化
     f_col1, f_col2 = st.columns(2)
     with f_col1:
         input_item = st.text_input("消費項目", placeholder="例如：韓國炸雞 🍗", key=f"item_{reset_key}")
     with f_col2:
         input_category = st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=f"cat_{reset_key}")
     
-    input_amount_str = st.text_input("花費金額", placeholder="請輸入金額...", key=f"amt_{reset_key}")
+    # 🎯 關鍵改動：改為 number_input 達到輸入數字「即時動態連動」
+    input_amount = st.number_input("花費金額", min_value=0.0, step=1.0, format="%.2f", value=0.0, key=f"amt_{reset_key}")
 
-    # 💡 打字的當下即刻計算並顯示預覽金額
-    try:
-        preview_amt = float(input_amount_str) if input_amount_str.strip() else 0
-        calc_twd = int(round(preview_amt * current_live_rate))
-        st.info(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
-    except ValueError:
-        st.caption(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD**")
+    # 即時計算並更新預覽金額
+    calc_twd = int(round(input_amount * current_live_rate))
+    st.info(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
 
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("💖 儲存這筆紀錄", use_container_width=True, type="primary", key=f"submit_{reset_key}"):
-        try:
-            input_amount = float(input_amount_str) if input_amount_str.strip() else None
-        except ValueError:
-            input_amount = None
-
         if not input_item.strip():
             st.warning("⚠️ 請填寫消費項目名稱喔！")
         elif input_category is None:
             st.warning("⚠️ 請選擇消費分類喔！")
-        elif input_amount is None or input_amount <= 0:
+        elif input_amount <= 0:
             st.warning("⚠️ 請輸入有效的數字金額喔！")
         else:
             date_str = input_date.strftime("%Y-%m-%d")
