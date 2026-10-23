@@ -121,7 +121,7 @@ CURRENCY_MAP = {
     "£ 英鎊": {"code": "GBP", "fallback": 42.00}
 }
 
-# 📊 2年 ~ 10年比率網歷史數據庫
+# 📊 2年 ~ 10年歷史數據庫
 RATESVIEWER_10Y_DB = {
     2017: {"USD": 30.43, "JPY": 0.2710, "CNY": 4.500, "KRW": 0.0270, "EUR": 34.35, "GBP": 39.20},
     2018: {"USD": 30.15, "JPY": 0.2730, "CNY": 4.560, "KRW": 0.0270, "EUR": 35.60, "GBP": 40.20},
@@ -143,7 +143,7 @@ RATESVIEWER_10Y_DB = {
     2025: {"USD": 32.50, "JPY": 0.2120, "CNY": 4.480, "KRW": 0.0230, "EUR": 35.20, "GBP": 41.80}
 }
 
-# 🏛️ 10年以上中央銀行外匯長期歷史資訊庫
+# 🏛️ 10年 ~ 30年中央銀行外匯長期歷史資訊庫 (擴充至 1995 年)
 CBC_LONGTERM_DB = {
     2016: {"USD": 32.26, "JPY": 0.2970, "CNY": 4.850, "KRW": 0.0270, "EUR": 35.70, "GBP": 43.60},
     2015: {"USD": 31.89, "JPY": 0.2640, "CNY": 5.080, "KRW": 0.0280, "EUR": 35.30, "GBP": 48.80},
@@ -151,7 +151,22 @@ CBC_LONGTERM_DB = {
     2013: {"USD": 29.77, "JPY": 0.3050, "CNY": 4.850, "KRW": 0.0272, "EUR": 39.50, "GBP": 46.50},
     2012: {"USD": 29.62, "JPY": 0.3710, "CNY": 4.690, "KRW": 0.0263, "EUR": 38.04, "GBP": 46.90},
     2011: {"USD": 29.47, "JPY": 0.3690, "CNY": 4.560, "KRW": 0.0266, "EUR": 41.02, "GBP": 47.20},
-    2010: {"USD": 31.64, "JPY": 0.3610, "CNY": 4.670, "KRW": 0.0274, "EUR": 41.98, "GBP": 48.90}
+    2010: {"USD": 31.64, "JPY": 0.3610, "CNY": 4.670, "KRW": 0.0274, "EUR": 41.98, "GBP": 48.90},
+    2009: {"USD": 33.05, "JPY": 0.3530, "CNY": 4.830, "KRW": 0.0259, "EUR": 46.00, "GBP": 51.60},
+    2008: {"USD": 31.52, "JPY": 0.3060, "CNY": 4.530, "KRW": 0.0286, "EUR": 46.30, "GBP": 58.20},
+    2007: {"USD": 32.84, "JPY": 0.2790, "CNY": 4.320, "KRW": 0.0354, "EUR": 44.90, "GBP": 65.60},
+    2006: {"USD": 32.53, "JPY": 0.2790, "CNY": 4.080, "KRW": 0.0341, "EUR": 40.80, "GBP": 59.90},
+    2005: {"USD": 32.17, "JPY": 0.2920, "CNY": 3.930, "KRW": 0.0314, "EUR": 40.10, "GBP": 58.50},
+    2004: {"USD": 33.43, "JPY": 0.3090, "CNY": 4.040, "KRW": 0.0292, "EUR": 41.50, "GBP": 61.20},
+    2003: {"USD": 34.42, "JPY": 0.2970, "CNY": 4.160, "KRW": 0.0289, "EUR": 38.90, "GBP": 56.20},
+    2002: {"USD": 34.58, "JPY": 0.2760, "CNY": 4.180, "KRW": 0.0276, "EUR": 32.60, "GBP": 51.90},
+    2001: {"USD": 33.80, "JPY": 0.2780, "CNY": 4.080, "KRW": 0.0262, "EUR": 30.30, "GBP": 48.70},
+    2000: {"USD": 31.23, "JPY": 0.2900, "CNY": 3.770, "KRW": 0.0276, "EUR": 28.80, "GBP": 47.30},
+    1999: {"USD": 32.27, "JPY": 0.2830, "CNY": 3.900, "KRW": 0.0271, "EUR": 34.40, "GBP": 52.20},
+    1998: {"USD": 33.46, "JPY": 0.2560, "CNY": 4.040, "KRW": 0.0239, "EUR": 37.50, "GBP": 55.40},
+    1997: {"USD": 28.70, "JPY": 0.2370, "CNY": 3.460, "KRW": 0.0302, "EUR": 32.40, "GBP": 47.00},
+    1996: {"USD": 27.49, "JPY": 0.2530, "CNY": 3.310, "KRW": 0.0342, "EUR": 35.10, "GBP": 42.90},
+    1995: {"USD": 26.49, "JPY": 0.2820, "CNY": 3.170, "KRW": 0.0343, "EUR": 34.70, "GBP": 41.80}
 }
 
 CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", "🎮 娛樂遊玩", "🏠 居家日常", "💊 醫療健康", "✨ 其他雜項"]
@@ -321,10 +336,8 @@ if 'confirm_delete_account' not in st.session_state:
     st.session_state.confirm_delete_account = False
 if 'show_popup_type' not in st.session_state:
     st.session_state.show_popup_type = None
-if 'active_edit_item' not in st.session_state:
-    st.session_state.active_edit_item = None
 
-# 🌟 5. 可愛的提示視窗 (支援切換中稍等 + 儲存成功)
+# 🌟 5. 可愛的提示視窗
 @st.dialog("🌸 系統訊息")
 def cute_status_dialog(msg_type):
     if msg_type == "switching":
@@ -366,25 +379,20 @@ def cute_status_dialog(msg_type):
 if st.session_state.show_popup_type:
     cute_status_dialog(st.session_state.show_popup_type)
 
-# 6. 彈出式修改小視窗 (完美動態重新載入數字與 Key)
+# 6. 彈出式修改小視窗
 @st.dialog("✏️ 修改記帳紀錄")
 def edit_expense_dialog(rec, rec_id, prefix):
     unique_key = f"dlg_{prefix}_{rec_id}"
     
-    last_c_key = f"last_c_{unique_key}"
-    last_d_key = f"last_d_{unique_key}"
-    
-    if last_c_key not in st.session_state:
-        st.session_state[last_c_key] = rec["currency"]
-    if last_d_key not in st.session_state:
-        st.session_state[last_d_key] = datetime.strptime(rec["date"], "%Y-%m-%d").date()
-
     def on_change_edit():
         st.session_state.show_popup_type = "switching"
 
+    # 日曆範圍開擴至 1995 年起 (約 30 年前)
     edit_date = st.date_input(
         "修改日期", 
         datetime.strptime(rec["date"], "%Y-%m-%d"), 
+        min_value=date(1995, 1, 1),
+        max_value=date.today(),
         key=f"d_{unique_key}", 
         on_change=on_change_edit
     )
@@ -399,16 +407,13 @@ def edit_expense_dialog(rec, rec_id, prefix):
         on_change=on_change_edit
     )
 
-    # 💡 強制讓 Key 動態跟著幣別+日期變化，徹底告別舊數字死鎖！
     currency_code = CURRENCY_MAP[edit_currency]["code"]
     dynamic_rate_key = f"rate_{unique_key}_{currency_code}_{edit_date.strftime('%Y%m%d')}"
 
-    # 即時獲取選定幣別的精準匯率
     current_calc_rate = fetch_rate_by_date(edit_currency, edit_date)
 
     edit_amount_str = st.text_input("修改金額", value=str(rec["original_amount"]), key=f"a_{unique_key}")
     
-    # 動態綁定數字
     rate_val_input = st.number_input(
         "使用匯率 (可手動調整)", 
         value=float(current_calc_rate), 
@@ -620,7 +625,7 @@ else:
 # 12. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：逐筆輸入與明細 (僅顯示 10 筆) ---
+# --- 分頁 1：逐筆輸入與明細 (即時聯動金額 + 擴大日曆) ---
 with tab_input:
     st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
@@ -630,80 +635,88 @@ with tab_input:
 
     input_col1, input_col2 = st.columns(2)
     with input_col1:
-        input_date = st.date_input("選擇日期 (年/月/日)", datetime.now().date(), key=f"date_{reset_key}", on_change=on_change_main_input)
+        # 日曆選擇範圍擴大至 1995 年起 (約 30 年前)
+        input_date = st.date_input(
+            "選擇日期 (年/月/日)", 
+            datetime.now().date(), 
+            min_value=date(1995, 1, 1),
+            max_value=date.today(),
+            key=f"date_{reset_key}", 
+            on_change=on_change_main_input
+        )
     with input_col2:
         currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=0, key=f"curr_{reset_key}", on_change=on_change_main_input)
 
     current_live_rate = fetch_rate_by_date(currency, input_date)
 
-    with st.form("add_expense_form", clear_on_submit=False):
-        f_col1, f_col2 = st.columns(2)
-        with f_col1:
-            input_item = st.text_input("消費項目", placeholder="例如：韓國炸雞 🍗", key=f"item_{reset_key}")
-        with f_col2:
-            input_category = st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=f"cat_{reset_key}")
-        
-        input_amount_str = st.text_input("花費金額", placeholder="請輸入金額...", key=f"amt_{reset_key}")
+    # 💡 移出 Form 區域，讓打字能即時觸發折算預覽變化
+    f_col1, f_col2 = st.columns(2)
+    with f_col1:
+        input_item = st.text_input("消費項目", placeholder="例如：韓國炸雞 🍗", key=f"item_{reset_key}")
+    with f_col2:
+        input_category = st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=f"cat_{reset_key}")
+    
+    input_amount_str = st.text_input("花費金額", placeholder="請輸入金額...", key=f"amt_{reset_key}")
 
+    # 💡 打字的當下即刻計算並顯示預覽金額
+    try:
+        preview_amt = float(input_amount_str) if input_amount_str.strip() else 0
+        calc_twd = int(round(preview_amt * current_live_rate))
+        st.info(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
+    except ValueError:
+        st.caption(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD**")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("💖 儲存這筆紀錄", use_container_width=True, type="primary", key=f"submit_{reset_key}"):
         try:
-            preview_amt = float(input_amount_str) if input_amount_str.strip() else 0
-            calc_twd = int(round(preview_amt * current_live_rate))
-            st.info(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
+            input_amount = float(input_amount_str) if input_amount_str.strip() else None
         except ValueError:
-            st.caption(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD**")
+            input_amount = None
 
-        submit_btn = st.form_submit_button("💖 儲存這筆紀錄", use_container_width=True)
-
-        if submit_btn:
-            try:
-                input_amount = float(input_amount_str) if input_amount_str.strip() else None
-            except ValueError:
-                input_amount = None
-
-            if not input_item.strip():
-                st.warning("⚠️ 請填寫消費項目名稱喔！")
-            elif input_category is None:
-                st.warning("⚠️ 請選擇消費分類喔！")
-            elif input_amount is None or input_amount <= 0:
-                st.warning("⚠️ 請輸入有效的數字金額喔！")
+        if not input_item.strip():
+            st.warning("⚠️ 請填寫消費項目名稱喔！")
+        elif input_category is None:
+            st.warning("⚠️ 請選擇消費分類喔！")
+        elif input_amount is None or input_amount <= 0:
+            st.warning("⚠️ 請輸入有效的數字金額喔！")
+        else:
+            date_str = input_date.strftime("%Y-%m-%d")
+            year_num = input_date.year
+            month_str = input_date.strftime("%Y-%m")
+            
+            amount_twd_val = int(round(input_amount * current_live_rate))
+            formatted_orig = str(int(input_amount)) if input_amount.is_integer() else str(input_amount)
+            
+            if st.session_state.logged_in:
+                add_expense_db(
+                    username=st.session_state.username,
+                    date_str=date_str,
+                    year_num=year_num,
+                    month_str=month_str,
+                    item=input_item.strip(),
+                    category=input_category,
+                    orig_amt=formatted_orig,
+                    currency=currency,
+                    rate=round(current_live_rate, 4),
+                    amt_twd=amount_twd_val
+                )
             else:
-                date_str = input_date.strftime("%Y-%m-%d")
-                year_num = input_date.year
-                month_str = input_date.strftime("%Y-%m")
-                
-                amount_twd_val = int(round(input_amount * current_live_rate))
-                formatted_orig = str(int(input_amount)) if input_amount.is_integer() else str(input_amount)
-                
-                if st.session_state.logged_in:
-                    add_expense_db(
-                        username=st.session_state.username,
-                        date_str=date_str,
-                        year_num=year_num,
-                        month_str=month_str,
-                        item=input_item.strip(),
-                        category=input_category,
-                        orig_amt=formatted_orig,
-                        currency=currency,
-                        rate=round(current_live_rate, 4),
-                        amt_twd=amount_twd_val
-                    )
-                else:
-                    new_rec = {
-                        "date": date_str,
-                        "year": year_num,
-                        "month": month_str,
-                        "item": input_item.strip(),
-                        "category": input_category,
-                        "original_amount": formatted_orig,
-                        "currency": currency,
-                        "rate_used": round(current_live_rate, 4),
-                        "amount_twd": amount_twd_val
-                    }
-                    st.session_state.guest_expenses.append(new_rec)
+                new_rec = {
+                    "date": date_str,
+                    "year": year_num,
+                    "month": month_str,
+                    "item": input_item.strip(),
+                    "category": input_category,
+                    "original_amount": formatted_orig,
+                    "currency": currency,
+                    "rate_used": round(current_live_rate, 4),
+                    "amount_twd": amount_twd_val
+                }
+                st.session_state.guest_expenses.append(new_rec)
 
-                st.session_state.form_reset_key += 1
-                st.session_state.show_popup_type = "saved"
-                st.rerun()
+            st.session_state.form_reset_key += 1
+            st.session_state.show_popup_type = "saved"
+            st.rerun()
 
     st.markdown("---")
     st.subheader("📜 最近的記帳明細")
