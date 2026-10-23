@@ -110,7 +110,7 @@ def delete_expense_db(expense_id):
 
 init_db()
 
-# 幣別與對應基本數值防錯基準
+# 幣別與基準對照
 CURRENCY_MAP = {
     "NT 新台幣": {"code": "TWD", "fallback": 1.0},
     "US 美元": {"code": "USD", "fallback": 32.50},
@@ -158,7 +158,7 @@ CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", 
 
 MACARON_COLORS = ['#ffb7c5', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#e0bbe4', '#fec8d8']
 
-# ⚡ 精準即時匯率獲取（附帶嚴格數值範圍防錯機制）
+# ⚡ 精準匯率計算（附帶幣別強制安全隔離檢查）
 def fetch_rate_by_date(currency_label, target_date):
     if currency_label == "NT 新台幣":
         return 1.0
@@ -172,7 +172,7 @@ def fetch_rate_by_date(currency_label, target_date):
     target_year = check_date.year
     target_month_str = check_date.strftime("%Y-%m")
 
-    # 1. 當下實時 / 1年以內 ➔ 優先調用精準國際外匯 API
+    # 1. 1年以內 ➔ 國際精準外匯 API
     if days_diff <= 365:
         try:
             url = f"https://open.er-api.com/v6/latest/{code}"
@@ -181,7 +181,7 @@ def fetch_rate_by_date(currency_label, target_date):
                 data = res.json()
                 if "rates" in data and "TWD" in data["rates"]:
                     val = float(data["rates"]["TWD"])
-                    # 嚴格校驗：防範數據混淆
+                    # 安全鎖防錯機制：絕對不允許交叉混淆
                     if code in ["USD", "EUR", "GBP"] and val < 10:
                         return fallback
                     if code == "JPY" and val > 1.0:
@@ -194,7 +194,7 @@ def fetch_rate_by_date(currency_label, target_date):
         except Exception:
             pass
 
-    # 2. 2~10 年 ➔ 比率網歷史外匯數據
+    # 2. 2~10 年 ➔ 比率網歷史數據
     if target_year in RATESVIEWER_10Y_DB:
         year_db = RATESVIEWER_10Y_DB[target_year]
         if "monthly" in year_db and target_month_str in year_db["monthly"]:
@@ -204,7 +204,7 @@ def fetch_rate_by_date(currency_label, target_date):
         if code in year_db:
             return year_db[code]
 
-    # 3. 10 年以上 ➔ 中央銀行外匯長期歷史資訊庫
+    # 3. 10 年以上 ➔ 中央銀行歷史庫
     if target_year in CBC_LONGTERM_DB and code in CBC_LONGTERM_DB[target_year]:
         return CBC_LONGTERM_DB[target_year][code]
 
@@ -334,7 +334,7 @@ def cute_status_dialog(msg_type):
         <div class="popup-box">
             <div class="popup-icon">🔄✨</div>
             <h3 style="color: #ff6b81; font-weight: 800;">切換中，請稍後...</h3>
-            <p style="color: #8b7d83; font-weight: 700;">正在精準獲取當前即時匯率數據喔！</p>
+            <p style="color: #8b7d83; font-weight: 700;">正在計算最新匯率並同步數字喔！</p>
         </div>
         """, unsafe_allow_html=True)
         progress_bar = st.progress(0)
@@ -390,6 +390,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
     
     edit_amount_str = st.text_input("修改金額", value=str(rec["original_amount"]), key=f"a_{unique_key}")
     
+    # ⚡ 每次渲染時即時計算與該幣別 100% 綁定且經防錯校驗的匯率
     fetched_rate = fetch_rate_by_date(edit_currency, edit_date)
     rate_val_input = st.number_input("使用匯率 (可手動調整)", value=float(fetched_rate), format="%.4f", key=f"r_{unique_key}")
 
@@ -407,7 +408,9 @@ def edit_expense_dialog(rec, rec_id, prefix):
             elif edit_amount is None or edit_amount <= 0:
                 st.warning("⚠️ 請輸入有效的數字金額！")
             else:
-                amount_twd_val = int(round(edit_amount * rate_val_input))
+                # 重新根據最新選定的幣別即時再計算一次匯率（防範時間差漏洞）
+                real_safe_rate = fetch_rate_by_date(edit_currency, edit_date)
+                amount_twd_val = int(round(edit_amount * real_safe_rate))
                 formatted_orig = str(int(edit_amount)) if edit_amount.is_integer() else str(edit_amount)
                 
                 if st.session_state.logged_in:
@@ -420,7 +423,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
                         category=edit_category,
                         orig_amt=formatted_orig,
                         currency=edit_currency,
-                        rate=round(rate_val_input, 4),
+                        rate=round(real_safe_rate, 4),
                         amt_twd=amount_twd_val
                     )
                 else:
@@ -432,7 +435,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
                         "category": edit_category,
                         "original_amount": formatted_orig,
                         "currency": edit_currency,
-                        "rate_used": round(rate_val_input, 4),
+                        "rate_used": round(real_safe_rate, 4),
                         "amount_twd": amount_twd_val
                     }
                 st.session_state.show_popup_type = "updated"
@@ -602,11 +605,14 @@ with tab_input:
     st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
 
+    def on_change_main():
+        st.session_state.show_popup_type = "switching"
+
     input_col1, input_col2 = st.columns(2)
     with input_col1:
-        input_date = st.date_input("選擇日期 (年/月/日)", datetime.now().date(), key=f"date_{reset_key}")
+        input_date = st.date_input("選擇日期 (年/月/日)", datetime.now().date(), key=f"date_{reset_key}", on_change=on_change_main)
     with input_col2:
-        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=0, key=f"curr_{reset_key}")
+        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=0, key=f"curr_{reset_key}", on_change=on_change_main)
 
     current_live_rate = fetch_rate_by_date(currency, input_date)
 
@@ -645,7 +651,9 @@ with tab_input:
                 year_num = input_date.year
                 month_str = input_date.strftime("%Y-%m")
                 
-                amount_twd_val = int(round(input_amount * current_live_rate))
+                # 重新根據最新選定的幣別即時再計算一次匯率（絕對防範交叉混淆）
+                real_safe_rate = fetch_rate_by_date(currency, input_date)
+                amount_twd_val = int(round(input_amount * real_safe_rate))
                 formatted_orig = str(int(input_amount)) if input_amount.is_integer() else str(input_amount)
                 
                 if st.session_state.logged_in:
@@ -658,7 +666,7 @@ with tab_input:
                         category=input_category,
                         orig_amt=formatted_orig,
                         currency=currency,
-                        rate=round(current_live_rate, 4),
+                        rate=round(real_safe_rate, 4),
                         amt_twd=amount_twd_val
                     )
                 else:
@@ -670,7 +678,7 @@ with tab_input:
                         "category": input_category,
                         "original_amount": formatted_orig,
                         "currency": currency,
-                        "rate_used": round(current_live_rate, 4),
+                        "rate_used": round(real_safe_rate, 4),
                         "amount_twd": amount_twd_val
                     }
                     st.session_state.guest_expenses.append(new_rec)
