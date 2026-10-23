@@ -122,7 +122,7 @@ CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", 
 
 MACARON_COLORS = ['#ffb7c5', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#e0bbe4', '#fec8d8']
 
-# 抓取指定日期的歷史匯率 (若為未來日期則抓取最新即時匯率)
+# 修正後：準確抓取歷史/當日匯率 (1 外幣 =多少 台幣)
 def fetch_rate_by_date(currency_label, target_date):
     if currency_label == "NT 新台幣":
         return 1.0, True
@@ -130,30 +130,31 @@ def fetch_rate_by_date(currency_label, target_date):
     target_code = CURRENCY_MAP[currency_label]["code"]
     today = date.today()
     
-    # 未來日期：呼叫最新即時 API
-    if target_date > today:
-        try:
-            url = f"https://open.er-api.com/v6/latest/{target_code}"
-            res = requests.get(url, timeout=3)
-            if res.status_code == 200:
-                data = res.json()
-                twd_rate = data["rates"]["TWD"]
-                return round(float(twd_rate), 4), True
-        except Exception:
-            pass
-    # 歷史或今日日期：呼叫歷史匯率 API (Frankfurter API)
-    else:
+    # 1. 嘗試由 Frankfurter API 獲取歷史當天匯率
+    if target_date <= today:
         try:
             date_str = target_date.strftime("%Y-%m-%d")
-            url = f"https://api.frankfurter.app/{date_str}?from={target_code}&to=TWD"
+            url = f"https://api.frankfurter.dev/v1/{date_str}?from={target_code}&to=TWD"
             res = requests.get(url, timeout=3)
             if res.status_code == 200:
                 data = res.json()
-                twd_rate = data["rates"]["TWD"]
-                return round(float(twd_rate), 4), True
+                if "rates" in data and "TWD" in data["rates"]:
+                    return round(float(data["rates"]["TWD"]), 4), True
         except Exception:
             pass
             
+    # 2. 未來日期或第一支 API 失敗時：呼叫即時最新匯率 API (ExchangeRate-API)
+    try:
+        url = f"https://open.er-api.com/v6/latest/{target_code}"
+        res = requests.get(url, timeout=3)
+        if res.status_code == 200:
+            data = res.json()
+            if "rates" in data and "TWD" in data["rates"]:
+                return round(float(data["rates"]["TWD"]), 4), True
+    except Exception:
+        pass
+        
+    # 3. 若網路均無回應，使用 Fallback 保底
     return CURRENCY_MAP[currency_label]["fallback"], False
 
 # 3. 馬卡龍風格 CSS 樣式
@@ -279,7 +280,6 @@ def edit_expense_dialog(rec, rec_id, prefix):
             elif edit_amount is None or edit_amount <= 0:
                 st.warning("⚠️ 請輸入有效的數字金額！")
             else:
-                # 自動根據修改後的日期抓取歷史或即時匯率
                 rate, _ = fetch_rate_by_date(edit_currency, edit_date)
                 amount_twd_val = int(round(edit_amount * rate))
                 formatted_orig = str(int(edit_amount)) if edit_amount.is_integer() else str(edit_amount)
