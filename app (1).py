@@ -301,7 +301,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
             st.toast("🗑️ 已成功刪除該筆資料！", icon="✨")
             st.rerun()
 
-# 6. 通用圖表繪製函式（無圖表標題）
+# 6. 通用圖表繪製函式（無圖表標題、柱狀圖圓角）
 def render_custom_chart(df_data, x_col, y_col, chart_type, key_name):
     if chart_type == "🥧 圓餅圖 (Pie)":
         fig = px.pie(df_data, values=y_col, names=x_col, hole=0, color_discrete_sequence=MACARON_COLORS)
@@ -311,6 +311,7 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name):
         fig.update_traces(textposition='inside', textinfo='percent+label')
     elif chart_type == "📊 柱狀圖 (Bar)":
         fig = px.bar(df_data, x=x_col, y=y_col, color=x_col, color_discrete_sequence=MACARON_COLORS, text_auto=',d')
+        fig.update_traces(marker_cornerradius=12) # 設定圓角柱體
         fig.update_layout(showlegend=False, xaxis_title="", yaxis_title="金額 (NT$)")
     elif chart_type == "📈 折線圖 (Line)":
         fig = px.line(df_data, x=x_col, y=y_col, markers=True, color_discrete_sequence=['#ff6b81'])
@@ -318,7 +319,7 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name):
         fig.update_layout(xaxis_title="", yaxis_title="金額 (NT$)")
     
     fig.update_layout(
-        title="", # 無標題名稱
+        title="",
         margin=dict(t=10, b=20, l=20, r=20),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
@@ -521,7 +522,6 @@ with tab_input:
         is_asc = (sort_order == "📅 最舊日期在前")
         expenses_list.sort(key=lambda x: x["date"], reverse=not is_asc)
         
-        # 截取前 10 筆顯示
         display_list = expenses_list[:10]
         prefix = "db" if st.session_state.logged_in else "guest"
         
@@ -617,7 +617,7 @@ with tab_year:
         with y_sel_col1:
             selected_year = st.selectbox("🎆 請選擇年份：", all_years, key="select_year_key")
         with y_sel_col2:
-            y_view_mode = st.selectbox("🔍 選擇分析維度：", ["🏷️ 類別消費狀況", "🗓️ 各月份消費情況"], key="y_view_mode")
+            y_view_mode = st.selectbox("🔍 選擇分析維度：", ["🏷️ 各類別消費狀況", "🗓️ 各月份消費情況"], key="y_view_mode")
         with y_sel_col3:
             if y_view_mode == "🗓️ 各月份消費情況":
                 y_chart_type = st.selectbox("📊 選擇圖表類型：", ["📊 柱狀圖 (Bar)", "📈 折線圖 (Line)"], key="y_chart_type")
