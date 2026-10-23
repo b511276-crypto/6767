@@ -321,11 +321,26 @@ if 'confirm_delete_account' not in st.session_state:
     st.session_state.confirm_delete_account = False
 if 'show_popup_type' not in st.session_state:
     st.session_state.show_popup_type = None
+if 'active_edit_item' not in st.session_state:
+    st.session_state.active_edit_item = None
 
-# 🌟 5. 可愛的全域成功提示小視窗 (st.dialog)
+# 🌟 5. 可愛的提示視窗 (支援切換中稍等 + 儲存成功)
 @st.dialog("🌸 系統訊息")
 def cute_status_dialog(msg_type):
-    if msg_type == "saved":
+    if msg_type == "switching":
+        st.markdown("""
+        <div class="popup-box">
+            <div class="popup-icon">🔄✨</div>
+            <h3 style="color: #ff6b81; font-weight: 800;">切換中，請稍後...</h3>
+            <p style="color: #8b7d83; font-weight: 700;">正在為您精準連線並獲取最新匯率數字喔！</p>
+        </div>
+        """, unsafe_allow_html=True)
+        bar = st.progress(0)
+        for i in range(100):
+            time.sleep(0.01)
+            bar.progress(i + 1)
+            
+    elif msg_type == "saved":
         st.markdown("""
         <div class="popup-box">
             <div class="popup-icon">🎉💖</div>
@@ -333,7 +348,7 @@ def cute_status_dialog(msg_type):
             <p style="color: #8b7d83; font-weight: 700;">已經為你完美紀錄這筆生活消費囉！</p>
         </div>
         """, unsafe_allow_html=True)
-        time.sleep(2.0)
+        time.sleep(1.5)
         
     elif msg_type == "updated":
         st.markdown("""
@@ -343,7 +358,7 @@ def cute_status_dialog(msg_type):
             <p style="color: #8b7d83; font-weight: 700;">消費紀錄已經更新完畢囉！</p>
         </div>
         """, unsafe_allow_html=True)
-        time.sleep(2.0)
+        time.sleep(1.5)
 
     st.session_state.show_popup_type = None
     st.rerun()
@@ -351,23 +366,28 @@ def cute_status_dialog(msg_type):
 if st.session_state.show_popup_type:
     cute_status_dialog(st.session_state.show_popup_type)
 
-# 6. 彈出式修改小視窗 (修正：加載完成後不觸發全頁關閉)
+# 6. 彈出式修改小視窗 (完美動態重新載入數字與 Key)
 @st.dialog("✏️ 修改記帳紀錄")
 def edit_expense_dialog(rec, rec_id, prefix):
     unique_key = f"dlg_{prefix}_{rec_id}"
     
-    last_curr_key = f"last_c_{unique_key}"
-    last_date_key = f"last_d_{unique_key}"
-    rate_val_key = f"r_val_{unique_key}"
+    last_c_key = f"last_c_{unique_key}"
+    last_d_key = f"last_d_{unique_key}"
+    
+    if last_c_key not in st.session_state:
+        st.session_state[last_c_key] = rec["currency"]
+    if last_d_key not in st.session_state:
+        st.session_state[last_d_key] = datetime.strptime(rec["date"], "%Y-%m-%d").date()
 
-    if last_curr_key not in st.session_state:
-        st.session_state[last_curr_key] = rec["currency"]
-    if last_date_key not in st.session_state:
-        st.session_state[last_date_key] = datetime.strptime(rec["date"], "%Y-%m-%d").date()
-    if rate_val_key not in st.session_state:
-        st.session_state[rate_val_key] = float(rec["rate_used"])
+    def on_change_edit():
+        st.session_state.show_popup_type = "switching"
 
-    edit_date = st.date_input("修改日期", datetime.strptime(rec["date"], "%Y-%m-%d"), key=f"d_{unique_key}")
+    edit_date = st.date_input(
+        "修改日期", 
+        datetime.strptime(rec["date"], "%Y-%m-%d"), 
+        key=f"d_{unique_key}", 
+        on_change=on_change_edit
+    )
     edit_item = st.text_input("修改項目名稱", value=rec["item"], key=f"i_{unique_key}")
     edit_category = st.selectbox("修改分類", CATEGORIES, index=CATEGORIES.index(rec["category"]), key=f"cat_{unique_key}")
     
@@ -375,25 +395,25 @@ def edit_expense_dialog(rec, rec_id, prefix):
         "修改幣別", 
         list(CURRENCY_MAP.keys()), 
         index=list(CURRENCY_MAP.keys()).index(rec["currency"]), 
-        key=f"c_{unique_key}"
+        key=f"c_{unique_key}",
+        on_change=on_change_edit
     )
 
-    # 💡 檢測到變更時，只在彈窗內部平滑更新數值，不再執行引發關閉視窗的 rerun
-    if edit_currency != st.session_state[last_curr_key] or edit_date != st.session_state[last_date_key]:
-        with st.spinner("🔄✨ 切換中，請稍後... 正在計算最新匯率"):
-            new_calculated_rate = fetch_rate_by_date(edit_currency, edit_date)
-            st.session_state[rate_val_key] = float(new_calculated_rate)
-            st.session_state[last_curr_key] = edit_currency
-            st.session_state[last_date_key] = edit_date
-            time.sleep(1.0)
+    # 💡 強制讓 Key 動態跟著幣別+日期變化，徹底告別舊數字死鎖！
+    currency_code = CURRENCY_MAP[edit_currency]["code"]
+    dynamic_rate_key = f"rate_{unique_key}_{currency_code}_{edit_date.strftime('%Y%m%d')}"
+
+    # 即時獲取選定幣別的精準匯率
+    current_calc_rate = fetch_rate_by_date(edit_currency, edit_date)
 
     edit_amount_str = st.text_input("修改金額", value=str(rec["original_amount"]), key=f"a_{unique_key}")
     
+    # 動態綁定數字
     rate_val_input = st.number_input(
         "使用匯率 (可手動調整)", 
-        value=st.session_state[rate_val_key], 
+        value=float(current_calc_rate), 
         format="%.4f", 
-        key=f"r_{unique_key}"
+        key=dynamic_rate_key
     )
 
     st.markdown("---")
@@ -605,27 +625,16 @@ with tab_input:
     st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
 
-    if "main_last_c" not in st.session_state:
-        st.session_state.main_last_c = "NT 新台幣"
-    if "main_last_d" not in st.session_state:
-        st.session_state.main_last_d = datetime.now().date()
-    if "main_live_rate" not in st.session_state:
-        st.session_state.main_live_rate = 1.0
+    def on_change_main_input():
+        st.session_state.show_popup_type = "switching"
 
     input_col1, input_col2 = st.columns(2)
     with input_col1:
-        input_date = st.date_input("選擇日期 (年/月/日)", datetime.now().date(), key=f"date_{reset_key}")
+        input_date = st.date_input("選擇日期 (年/月/日)", datetime.now().date(), key=f"date_{reset_key}", on_change=on_change_main_input)
     with input_col2:
-        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=0, key=f"curr_{reset_key}")
+        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=0, key=f"curr_{reset_key}", on_change=on_change_main_input)
 
-    if currency != st.session_state.main_last_c or input_date != st.session_state.main_last_d:
-        with st.spinner("🔄✨ 切換中，請稍後... 正在計算最新匯率"):
-            st.session_state.main_live_rate = fetch_rate_by_date(currency, input_date)
-            st.session_state.main_last_c = currency
-            st.session_state.main_last_d = input_date
-            time.sleep(1.0)
-
-    current_live_rate = st.session_state.main_live_rate
+    current_live_rate = fetch_rate_by_date(currency, input_date)
 
     with st.form("add_expense_form", clear_on_submit=False):
         f_col1, f_col2 = st.columns(2)
