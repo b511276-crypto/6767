@@ -111,7 +111,7 @@ init_db()
 
 CURRENCY_MAP = {
     "NT 新台幣": {"code": "TWD", "fallback": 1.0},
-    "US 美元": {"code": "USD", "fallback": 32.50},
+    "US 美元": {"code": "USD", "fallback": 32.60},
     "¥ 日圓": {"code": "JPY", "fallback": 0.21},
     "¥ 人民幣": {"code": "CNY", "fallback": 4.50},
     "₩ 韓元": {"code": "KRW", "fallback": 0.023},
@@ -119,10 +119,8 @@ CURRENCY_MAP = {
     "£ 英鎊": {"code": "GBP", "fallback": 42.00}
 }
 
-# 🏦 整合中央銀行 (CBC) 外匯歷史資料庫與銀行間收盤匯率
-CBC_HISTORICAL_DATABASE = {
-    2015: {"USD": 31.89, "JPY": 0.2640, "CNY": 5.080, "KRW": 0.0280, "EUR": 35.30, "GBP": 48.80},
-    2016: {"USD": 32.26, "JPY": 0.2970, "CNY": 4.850, "KRW": 0.0270, "EUR": 35.70, "GBP": 43.60},
+# 📊 【2年 ~ 10年】：比率網 (RatesViewer) 近十年歷史數據庫
+RATESVIEWER_10Y_DB = {
     2017: {"USD": 30.43, "JPY": 0.2710, "CNY": 4.500, "KRW": 0.0270, "EUR": 34.35, "GBP": 39.20},
     2018: {"USD": 30.15, "JPY": 0.2730, "CNY": 4.560, "KRW": 0.0270, "EUR": 35.60, "GBP": 40.20},
     2019: {"USD": 30.91, "JPY": 0.2830, "CNY": 4.470, "KRW": 0.0260, "EUR": 34.60, "GBP": 39.50},
@@ -140,28 +138,69 @@ CBC_HISTORICAL_DATABASE = {
     2022: {"USD": 29.80, "JPY": 0.2270, "CNY": 4.420, "KRW": 0.0230, "EUR": 31.35, "GBP": 36.80},
     2023: {"USD": 31.15, "JPY": 0.2200, "CNY": 4.350, "KRW": 0.0240, "EUR": 33.70, "GBP": 38.70},
     2024: {"USD": 32.20, "JPY": 0.2080, "CNY": 4.450, "KRW": 0.0230, "EUR": 34.80, "GBP": 41.20},
-    2025: {"USD": 32.50, "JPY": 0.2120, "CNY": 4.480, "KRW": 0.0230, "EUR": 35.20, "GBP": 41.80},
-    2026: {"USD": 32.60, "JPY": 0.2150, "CNY": 4.500, "KRW": 0.0230, "EUR": 35.50, "GBP": 42.00}
+    2025: {"USD": 32.50, "JPY": 0.2120, "CNY": 4.480, "KRW": 0.0230, "EUR": 35.20, "GBP": 41.80}
+}
+
+# 🏛️ 【10年以上】：中央銀行外匯長期歷史資訊庫
+CBC_LONGTERM_DB = {
+    2016: {"USD": 32.26, "JPY": 0.2970, "CNY": 4.850, "KRW": 0.0270, "EUR": 35.70, "GBP": 43.60},
+    2015: {"USD": 31.89, "JPY": 0.2640, "CNY": 5.080, "KRW": 0.0280, "EUR": 35.30, "GBP": 48.80},
+    2014: {"USD": 30.37, "JPY": 0.2870, "CNY": 4.940, "KRW": 0.0288, "EUR": 40.26, "GBP": 50.08},
+    2013: {"USD": 29.77, "JPY": 0.3050, "CNY": 4.850, "KRW": 0.0272, "EUR": 39.50, "GBP": 46.50},
+    2012: {"USD": 29.62, "JPY": 0.3710, "CNY": 4.690, "KRW": 0.0263, "EUR": 38.04, "GBP": 46.90},
+    2011: {"USD": 29.47, "JPY": 0.3690, "CNY": 4.560, "KRW": 0.0266, "EUR": 41.02, "GBP": 47.20},
+    2010: {"USD": 31.64, "JPY": 0.3610, "CNY": 4.670, "KRW": 0.0274, "EUR": 41.98, "GBP": 48.90}
 }
 
 CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", "🎮 娛樂遊玩", "🏠 居家日常", "💊 醫療健康", "✨ 其他雜項"]
 
 MACARON_COLORS = ['#ffb7c5', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#e0bbe4', '#fec8d8']
 
-# 🎯 多重備援與中央銀行歷史外匯整合引擎
+# 🎯 三層精準匯率檢索引擎 (1年內台銀即時/歷史CSV -> 2~10年比率網 -> 10年以上央行)
 def fetch_rate_by_date(currency_label, target_date):
     if currency_label == "NT 新台幣":
         return 1.0
         
     code = CURRENCY_MAP[currency_label]["code"]
-    target_year = target_date.year
-    target_month_str = target_date.strftime("%Y-%m")
     today = date.today()
     check_date = min(target_date, today)
+    days_diff = (today - check_date).days
+    target_year = check_date.year
+    target_month_str = check_date.strftime("%Y-%m")
 
-    # 1. 優先使用中央銀行 (CBC) 外匯歷史資料庫 (月份/年份精確比對)
-    if target_year in CBC_HISTORICAL_DATABASE:
-        year_db = CBC_HISTORICAL_DATABASE[target_year]
+    # --- 1. 一年以內 (<= 365天) ➔ 抓取台灣銀行 (BOT) 牌告 CSV ---
+    if days_diff <= 365:
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        
+        # 如果是「今天」，優先試抓台灣銀行最新即時牌告 CSV
+        urls_to_try = []
+        if check_date == today:
+            urls_to_try.append("https://rate.bot.com.tw/xrt/flcsv/0/day")
+            
+        # 依次嘗試指定日期往前的天數 (防假日開盤問題)
+        for i in range(5):
+            curr_d = check_date - timedelta(days=i)
+            urls_to_try.append(f"https://rate.bot.com.tw/xrt/flcsv/0/day/{curr_d.strftime('%Y%m%d')}")
+            
+        for url in urls_to_try:
+            try:
+                res = requests.get(url, headers=headers, timeout=2.0)
+                if res.status_code == 200 and ("牌告匯率" in res.text or "幣別" in res.text):
+                    lines = res.text.splitlines()
+                    for line in lines:
+                        parts = line.split(',')
+                        if len(parts) > 12 and code in parts[0]:
+                            spot_sell = parts[12].strip()  # 即期賣出
+                            cash_sell = parts[13].strip()  # 現金賣出
+                            rate_val = spot_sell if spot_sell and spot_sell != '-' else cash_sell
+                            if rate_val and rate_val != '-':
+                                return round(float(rate_val), 4)
+            except Exception:
+                pass
+
+    # --- 2. 2 年至 10 年 ➔ 比率網近十年歷史外匯數據 ---
+    if target_year in RATESVIEWER_10Y_DB:
+        year_db = RATESVIEWER_10Y_DB[target_year]
         if "monthly" in year_db and target_month_str in year_db["monthly"]:
             month_db = year_db["monthly"][target_month_str]
             if code in month_db:
@@ -169,12 +208,14 @@ def fetch_rate_by_date(currency_label, target_date):
         if code in year_db:
             return year_db[code]
 
-    # 2. 當超出內建年份時，嘗試向外存取公開即時/歷史 API
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    # --- 3. 10 年以上 ➔ 中央銀行外匯長期歷史資訊庫 ---
+    if target_year in CBC_LONGTERM_DB and code in CBC_LONGTERM_DB[target_year]:
+        return CBC_LONGTERM_DB[target_year][code]
+
+    # 備援 API / 預設保底
     try:
-        d_str = check_date.strftime("%Y-%m-%d")
-        url = f"https://open.er-api.com/v6/historical/{d_str}?base={code}"
-        res = requests.get(url, headers=headers, timeout=1.5)
+        url = f"https://open.er-api.com/v6/latest/{code}"
+        res = requests.get(url, timeout=1.5)
         if res.status_code == 200:
             data = res.json()
             if "rates" in data and "TWD" in data["rates"]:
@@ -182,7 +223,6 @@ def fetch_rate_by_date(currency_label, target_date):
     except Exception:
         pass
 
-    # 3. 預設保底值
     return CURRENCY_MAP[currency_label]["fallback"]
 
 # 3. 馬卡龍風格 CSS 樣式
@@ -294,7 +334,6 @@ def edit_expense_dialog(rec, rec_id, prefix):
     edit_currency = st.selectbox("修改幣別", list(CURRENCY_MAP.keys()), index=list(CURRENCY_MAP.keys()).index(rec["currency"]), key=f"c_{unique_key}")
     edit_amount_str = st.text_input("修改金額", value=str(rec["original_amount"]), key=f"a_{unique_key}")
     
-    # 根據選定日期檢索歷史外匯資訊
     fetched_rate = fetch_rate_by_date(edit_currency, edit_date)
     rate_val_input = st.number_input("使用匯率 (可手動調整)", value=float(fetched_rate), format="%.4f", key=f"r_{unique_key}")
 
