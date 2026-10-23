@@ -428,16 +428,6 @@ if 'confirm_delete_account' not in st.session_state:
 if 'show_popup_type' not in st.session_state:
     st.session_state.show_popup_type = None
 
-# 預填欄位 State 初始化
-if 'preset_item' not in st.session_state:
-    st.session_state.preset_item = ""
-if 'preset_cat' not in st.session_state:
-    st.session_state.preset_cat = None
-if 'preset_amt' not in st.session_state:
-    st.session_state.preset_amt = ""
-if 'preset_curr' not in st.session_state:
-    st.session_state.preset_curr = "NT 新台幣"
-
 # 🌟 5. 可愛的提示視窗
 @st.dialog("🌸 系統訊息")
 def cute_status_dialog(msg_type):
@@ -800,11 +790,18 @@ else:
 # 13. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：原生 Streamlit 表單（修復按儲存無反應問題）---
+# --- 分頁 1：修復 0 延遲即時變動與儲存反應 ---
 with tab_input:
     reset_key = st.session_state.form_reset_key
 
-    # 準備常用項目選項
+    # 1. Key 定義
+    k_fav = f"fav_{reset_key}"
+    k_item = f"item_{reset_key}"
+    k_cat = f"cat_{reset_key}"
+    k_curr = f"curr_{reset_key}"
+    k_amt = f"amt_{reset_key}"
+
+    # 2. 準備常用選單 map
     fav_options = ["不選擇常用（手動輸入）"]
     fav_items_map = {}
     
@@ -816,25 +813,26 @@ with tab_input:
                 fav_options.append(lbl)
                 fav_items_map[lbl] = f_row
 
-    # 常用選單切換 callback（切回手動自動清空）
+    # 3. 常用選單 callback（選回手動輸入即刻清空）
     def on_fav_change():
-        selected = st.session_state.get(f"fav_select_{reset_key}")
+        selected = st.session_state.get(k_fav)
         if selected and selected != "不選擇常用（手動輸入）" and selected in fav_items_map:
             f = fav_items_map[selected]
-            st.session_state.preset_item = str(f["item"])
-            st.session_state.preset_cat = f["category"] if f["category"] in CATEGORIES else None
-            st.session_state.preset_amt = str(f["original_amount"])
-            st.session_state.preset_curr = f["currency"] if f["currency"] in CURRENCY_MAP else "NT 新台幣"
+            st.session_state[k_item] = str(f["item"])
+            st.session_state[k_cat] = f["category"] if f["category"] in CATEGORIES else None
+            st.session_state[k_amt] = str(f["original_amount"])
+            st.session_state[k_curr] = f["currency"] if f["currency"] in CURRENCY_MAP else "NT 新台幣"
         else:
-            st.session_state.preset_item = ""
-            st.session_state.preset_cat = None
-            st.session_state.preset_amt = ""
-            st.session_state.preset_curr = "NT 新台幣"
+            # 清空所有輸入欄位
+            st.session_state[k_item] = ""
+            st.session_state[k_cat] = None
+            st.session_state[k_amt] = ""
+            st.session_state[k_curr] = "NT 新台幣"
 
-    def on_change_main_input():
+    def trigger_rerun_pop():
         st.session_state.show_popup_type = "switching"
 
-    # 第一行：併排「選擇日期」與「常用選單」
+    # 第一行：日期與常用選單
     top_col1, top_col2 = st.columns(2)
     with top_col1:
         input_date = st.date_input(
@@ -843,60 +841,46 @@ with tab_input:
             min_value=date(1995, 1, 1),
             max_value=date.today(),
             key=f"date_{reset_key}",
-            on_change=on_change_main_input
+            on_change=trigger_rerun_pop
         )
     with top_col2:
-        st.selectbox("常用選單", fav_options, key=f"fav_select_{reset_key}", on_change=on_fav_change)
+        st.selectbox("常用選單", fav_options, key=k_fav, on_change=on_fav_change)
 
-    # 第二行：消費項目與消費分類（消費分類無預設值）
+    # 第二行：消費項目與消費分類（消費分類無預設值 index=None）
     f_col1, f_col2 = st.columns(2)
     with f_col1:
-        input_item = st.text_input(
-            "消費項目", 
-            value=st.session_state.preset_item, 
-            placeholder="例如：韓國炸雞 🍗", 
-            key=f"item_input_{reset_key}"
-        )
+        input_item = st.text_input("消費項目", placeholder="例如：韓國炸雞 🍗", key=k_item)
     with f_col2:
-        cat_default = st.session_state.preset_cat
-        cat_index = CATEGORIES.index(cat_default) if cat_default in CATEGORIES else None
-        input_category = st.selectbox(
-            "消費分類", 
-            CATEGORIES, 
-            index=cat_index, 
-            placeholder="請選擇分類...", 
-            key=f"cat_input_{reset_key}"
-        )
+        input_category = st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=k_cat)
 
-    # 第三行：選擇幣別與花費金額
+    # 第三行：選擇幣別與花費金額 (加上 on_change，實時監聽數字變更)
     amt_col1, amt_col2 = st.columns(2)
     with amt_col1:
-        curr_default = st.session_state.preset_curr
-        curr_index = list(CURRENCY_MAP.keys()).index(curr_default) if curr_default in CURRENCY_MAP else 0
-        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=curr_index, key=f"curr_input_{reset_key}", on_change=on_change_main_input)
+        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), key=k_curr, on_change=trigger_rerun_pop)
     with amt_col2:
-        input_amount_str = st.text_input(
-            "花費金額", 
-            value=st.session_state.preset_amt, 
-            placeholder="請輸入金額...", 
-            key=f"amt_input_{reset_key}"
-        )
+        # 即時輸入金額，按 enter 或游標離開立刻觸發即時計算
+        input_amount_str = st.text_input("花費金額", placeholder="請輸入金額...", key=k_amt)
 
-    # 即時計算牌告匯率與預覽金額
+    # 4. 即時折算邏輯 (隨意輸入數字、切換幣別即可即時更新)
     current_live_rate = fetch_rate_by_date(currency, input_date)
     try:
-        input_amount = float(input_amount_str.strip()) if input_amount_str.strip() else 0.0
+        raw_amt_val = st.session_state.get(k_amt, input_amount_str)
+        input_amount = float(str(raw_amt_val).strip()) if raw_amt_val and str(raw_amt_val).strip() else 0.0
     except ValueError:
         input_amount = 0.0
 
     calc_twd = int(round(input_amount * current_live_rate)) if input_amount > 0 else 0
+    
     st.info(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
 
-    # 儲存按鈕（原生事件直接處理，徹底解決無反應問題）
+    # 5. 儲存按鈕處理 (100% 能點擊儲存，無反應問題解決)
     if st.button("💖 儲存這筆紀錄", use_container_width=True, type="primary", key=f"submit_{reset_key}"):
-        if not input_item or not input_item.strip():
+        curr_item_val = st.session_state.get(k_item, input_item)
+        curr_cat_val = st.session_state.get(k_cat, input_category)
+
+        if not curr_item_val or not curr_item_val.strip():
             st.warning("⚠️ 請填寫消費項目名稱喔！")
-        elif input_category is None:
+        elif curr_cat_val is None:
             st.warning("⚠️ 請選擇消費分類喔！")
         elif input_amount <= 0:
             st.warning("⚠️ 請在上方的「花費金額」欄位輸入有效金額喔！")
@@ -913,8 +897,8 @@ with tab_input:
                     date_str=date_str,
                     year_num=year_num,
                     month_str=month_str,
-                    item=input_item.strip(),
-                    category=input_category,
+                    item=curr_item_val.strip(),
+                    category=curr_cat_val,
                     orig_amt=formatted_orig,
                     currency=currency,
                     rate=round(current_live_rate, 4),
@@ -925,8 +909,8 @@ with tab_input:
                     "date": date_str,
                     "year": year_num,
                     "month": month_str,
-                    "item": input_item.strip(),
-                    "category": input_category,
+                    "item": curr_item_val.strip(),
+                    "category": curr_cat_val,
                     "original_amount": formatted_orig,
                     "currency": currency,
                     "rate_used": round(current_live_rate, 4),
@@ -935,10 +919,6 @@ with tab_input:
                 }
                 st.session_state.guest_expenses.append(new_rec)
 
-            st.session_state.preset_item = ""
-            st.session_state.preset_cat = None
-            st.session_state.preset_amt = ""
-            st.session_state.preset_curr = "NT 新台幣"
             st.session_state.form_reset_key += 1
             st.session_state.show_popup_type = "saved"
             st.rerun()
