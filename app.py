@@ -20,9 +20,16 @@ def init_db():
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY,
-            password_hash TEXT NOT NULL
+            password_hash TEXT NOT NULL,
+            avatar TEXT DEFAULT '🌸'
         )
     ''')
+    # 檢查是否需要補充 avatar 欄位
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT '🌸'")
+    except sqlite3.OperationalError:
+        pass
+
     c.execute('''
         CREATE TABLE IF NOT EXISTS expenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,11 +52,11 @@ def init_db():
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-def register_user(username, password):
+def register_user(username, password, avatar="🌸"):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", (username, hash_password(password)))
+        c.execute("INSERT INTO users (username, password_hash, avatar) VALUES (?, ?, ?)", (username, hash_password(password), avatar))
         conn.commit()
         conn.close()
         return True
@@ -60,12 +67,19 @@ def register_user(username, password):
 def authenticate_user(username, password):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("SELECT password_hash FROM users WHERE username = ?", (username,))
+    c.execute("SELECT password_hash, avatar FROM users WHERE username = ?", (username,))
     row = c.fetchone()
     conn.close()
     if row and row[0] == hash_password(password):
-        return True
-    return False
+        return True, row[1] if row[1] else "🌸"
+    return False, "🌸"
+
+def update_user_avatar(username, new_avatar):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("UPDATE users SET avatar = ? WHERE username = ?", (new_avatar, username))
+    conn.commit()
+    conn.close()
 
 def delete_user_account(username):
     conn = sqlite3.connect(DB_FILE)
@@ -121,6 +135,8 @@ CURRENCY_MAP = {
     "€ 歐元": {"code": "EUR", "fallback": 35.50},
     "£ 英鎊": {"code": "GBP", "fallback": 42.00}
 }
+
+AVATAR_OPTIONS = ["🌸", "🐱", "🐶", "🐰", "🦊", "🐻", "🐼", "🐥", "🦄", "👑", "🍕", "🎮", "🌟", "🍔"]
 
 # 📊 2年 ~ 10年歷史數據庫
 RATESVIEWER_10Y_DB = {
@@ -294,6 +310,12 @@ st.markdown("""
         margin-bottom: 1.2rem;
     }
     
+    .sidebar-user-avatar {
+        font-size: 3rem;
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+
     .sidebar-user-card h3 {
         color: #ff6b81;
         font-size: 1.3rem;
@@ -336,9 +358,14 @@ st.markdown("""
         box-shadow: 0 6px 16px rgba(201, 67, 83, 0.35) !important;
     }
 
-    /* 🙈 完全隱藏用來做背景資料傳輸的第二個輸入框 */
-    .hidden-input-field {
+    /* 🙈 100% 絕對隱藏資料傳輸專用欄位 (全面深層覆蓋) */
+    div[data-testid="stTextInput"]:has(input[aria-label="hidden_amt_receiver"]),
+    div[data-testid="stTextInput"]:has(input[aria-label="hidden_amt_receiver"]) * {
         display: none !important;
+        height: 0px !important;
+        margin: 0px !important;
+        padding: 0px !important;
+        visibility: hidden !important;
     }
 
     #MainMenu {visibility: hidden;} footer {visibility: hidden;}
@@ -350,6 +377,8 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 if 'username' not in st.session_state:
     st.session_state.username = ""
+if 'user_avatar' not in st.session_state:
+    st.session_state.user_avatar = "🌸"
 if 'guest_expenses' not in st.session_state:
     st.session_state.guest_expenses = []
 if 'form_reset_key' not in st.session_state:
@@ -544,7 +573,7 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
     )
     st.plotly_chart(fig, use_container_width=True, key=key_name)
 
-# 8. 側邊欄：登入與註冊系統
+# 8. 側邊欄：登入、註冊與頭像更換系統
 with st.sidebar:
     st.title("🌸 帳號管理")
     
@@ -556,10 +585,12 @@ with st.sidebar:
             login_user = st.text_input("帳號", key="login_user")
             login_pwd = st.text_input("密碼", type="password", key="login_pwd")
             if st.button("💖 登入系統", use_container_width=True):
-                if authenticate_user(login_user, login_pwd):
+                is_valid, user_avt = authenticate_user(login_user, login_pwd)
+                if is_valid:
                     st.session_state.logged_in = True
                     st.session_state.username = login_user
-                    st.toast(f"🎉 歡迎回來，{login_user}！", icon="✨")
+                    st.session_state.user_avatar = user_avt
+                    st.toast(f"🎉 歡迎回來，{login_user}！", icon=user_avt)
                     st.rerun()
                 else:
                     st.error("⚠️ 帳號或密碼錯誤喔！")
@@ -568,24 +599,35 @@ with st.sidebar:
             st.subheader("建立新帳號")
             reg_user = st.text_input("設定帳號", key="reg_user")
             reg_pwd = st.text_input("設定密碼", type="password", key="reg_pwd")
+            reg_avt = st.selectbox("選擇預設頭像", AVATAR_OPTIONS, index=0, key="reg_avt")
             if st.button("🌸 註冊帳號", use_container_width=True):
                 if not reg_user.strip() or not reg_pwd.strip():
                     st.warning("⚠️ 帳號與密碼不可空白！")
-                elif register_user(reg_user.strip(), reg_pwd.strip()):
+                elif register_user(reg_user.strip(), reg_pwd.strip(), reg_avt):
                     st.success("🎉 註冊成功！請切換至「登入」進行登入喔！")
                 else:
                     st.warning("⚠️ 該名稱已有人使用")
     else:
         st.markdown(f"""
         <div class="sidebar-user-card">
-            <div style="font-size: 0.9rem; color: #8b7d83; font-weight: 700;">目前登入身分</div>
-            <h3>🌸 {st.session_state.username}</h3>
+            <div class="sidebar-user-avatar">{st.session_state.user_avatar}</div>
+            <div style="font-size: 0.85rem; color: #8b7d83; font-weight: 700;">目前登入身分</div>
+            <h3>{st.session_state.username}</h3>
         </div>
         """, unsafe_allow_html=True)
-        
+
+        with st.expander("🖼️ 更換個人頭像"):
+            selected_new_avt = st.selectbox("選擇新頭像：", AVATAR_OPTIONS, index=AVATAR_OPTIONS.index(st.session_state.user_avatar) if st.session_state.user_avatar in AVATAR_OPTIONS else 0, key="change_avt_select")
+            if st.button("💾 儲存新頭像", use_container_width=True):
+                update_user_avatar(st.session_state.username, selected_new_avt)
+                st.session_state.user_avatar = selected_new_avt
+                st.toast("🎉 頭像更新成功！", icon=selected_new_avt)
+                st.rerun()
+
         if st.button("🚪 安全登出", use_container_width=True):
             st.session_state.logged_in = False
             st.session_state.username = ""
+            st.session_state.user_avatar = "🌸"
             st.session_state.confirm_delete_account = False
             st.toast("👋 已成功登出！", icon="✨")
             st.rerun()
@@ -608,6 +650,7 @@ with st.sidebar:
                     delete_user_account(st.session_state.username)
                     st.session_state.logged_in = False
                     st.session_state.username = ""
+                    st.session_state.user_avatar = "🌸"
                     st.session_state.confirm_delete_account = False
                     st.toast("🗑️ 帳號及相關資料已成功註銷！", icon="✨")
                     st.rerun()
@@ -651,7 +694,7 @@ else:
 # 12. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：逐筆輸入與明細 (完美隱藏多餘輸入框) ---
+# --- 分頁 1：逐筆輸入與明細 (完美隱藏多餘輸入框 + JavaScript 超感度計算) ---
 with tab_input:
     st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
@@ -704,21 +747,19 @@ with tab_input:
             document.getElementById('calc_preview').innerText = 'NT$ ' + result.toLocaleString();
             
             // 將數字即時同步給父視窗的隱藏元素
-            var hiddenInput = window.parent.document.querySelector('div[data-testid="stTextInput"]:has(input[aria-label="hidden_amt_receiver"]) input');
-            if (hiddenInput) {{
-                hiddenInput.value = cleanVal;
-                hiddenInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
-            }}
+            var hiddenInputs = window.parent.document.querySelectorAll('input[aria-label="hidden_amt_receiver"]');
+            hiddenInputs.forEach(function(inp) {{
+                inp.value = cleanVal;
+                inp.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            }});
         }}
     </script>
     """
     
     components.html(html_input_component, height=115)
 
-    # 🙈 使用 CSS 將背景數據同步槽完全隱藏起來
-    st.markdown('<div class="hidden-input-field">', unsafe_allow_html=True)
+    # 🙈 完全隱藏用來做背景資料傳輸的第二個輸入框
     input_amount_str = st.text_input("hidden_amt_receiver", placeholder="請輸入金額...", key=f"amt_str_{reset_key}", label_visibility="collapsed")
-    st.markdown('</div>', unsafe_allow_html=True)
 
     if st.button("💖 儲存這筆紀錄", use_container_width=True, type="primary", key=f"submit_{reset_key}"):
         final_str = input_amount_str.strip()
