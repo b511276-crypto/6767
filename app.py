@@ -123,7 +123,7 @@ CATEGORIES = ["🍔 美食飲食", "🛍️ 購物買買", "🚗 交通出行", 
 
 MACARON_COLORS = ['#ffb7c5', '#ffdac1', '#e2f0cb', '#b5ead7', '#c7ceea', '#e0bbe4', '#fec8d8']
 
-# 🎯 超強穩定歷史匯率引擎
+# 🎯 真實歷史匯率抓取（含偽裝瀏覽器 Header 防雲端阻擋）
 @st.cache_data(ttl=3600)
 def fetch_rate_by_date(currency_label, target_date):
     if currency_label == "NT 新台幣":
@@ -133,9 +133,12 @@ def fetch_rate_by_date(currency_label, target_date):
     today = date.today()
     check_date = min(target_date, today)
     
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/json,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    }
 
-    # 1. 嘗試由 Frankfurter API (穩定官方主站) 抓取歷史當天匯率
+    # 1. 優先使用 Frankfurter API (ECB 歷史資料庫)
     if check_date <= today:
         for i in range(5):
             curr_date = check_date - timedelta(days=i)
@@ -150,31 +153,25 @@ def fetch_rate_by_date(currency_label, target_date):
             except Exception:
                 pass
 
-    # 2. 若為近一年日期，嘗試台灣銀行歷史 CSV
-    if (today - check_date).days <= 365:
-        for i in range(3):
+    # 2. 備用：若 Frankfurter 失敗，試圖從開放外匯 API 抓取歷史
+    if check_date <= today:
+        for i in range(5):
             curr_date = check_date - timedelta(days=i)
-            date_str = curr_date.strftime("%Y%m%d")
-            url = f"https://rate.bot.com.tw/xrt/flcsv/0/day/{date_str}"
+            d_str = curr_date.strftime("%Y-%m-%d")
+            url = f"https://open.er-api.com/v6/historical/{d_str}?base={code}"
             try:
-                res = requests.get(url, headers=headers, timeout=2)
-                if res.status_code == 200 and "牌告匯率" in res.text:
-                    lines = res.text.splitlines()
-                    for line in lines:
-                        parts = line.split(',')
-                        if len(parts) > 12 and code in parts[0]:
-                            spot_sell = parts[12].strip()
-                            cash_sell = parts[13].strip()
-                            rate_val = spot_sell if spot_sell and spot_sell != '-' else cash_sell
-                            if rate_val and rate_val != '-':
-                                return round(float(rate_val), 4)
+                res = requests.get(url, headers=headers, timeout=3)
+                if res.status_code == 200:
+                    data = res.json()
+                    if "rates" in data and "TWD" in data["rates"]:
+                        return round(float(data["rates"]["TWD"]), 4)
             except Exception:
                 pass
 
-    # 3. 未來日期或歷史 API 皆無回應時，使用即時匯率
+    # 3. 若為未來日期或歷史查詢失敗，使用最新即時匯率
     try:
         url = f"https://open.er-api.com/v6/latest/{code}"
-        res = requests.get(url, headers=headers, timeout=2)
+        res = requests.get(url, headers=headers, timeout=3)
         if res.status_code == 200:
             data = res.json()
             if "rates" in data and "TWD" in data["rates"]:
@@ -293,7 +290,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
     edit_currency = st.selectbox("修改幣別", list(CURRENCY_MAP.keys()), index=list(CURRENCY_MAP.keys()).index(rec["currency"]), key=f"c_{unique_key}")
     edit_amount_str = st.text_input("修改金額", value=str(rec["original_amount"]), key=f"a_{unique_key}")
     
-    # 重新獲取對應日期的歷史匯率
+    # 根據選定的日期重新抓取歷史匯率
     fetched_rate = fetch_rate_by_date(edit_currency, edit_date)
     rate_val_input = st.number_input("使用匯率 (可手動調整)", value=float(fetched_rate), format="%.4f", key=f"r_{unique_key}")
 
