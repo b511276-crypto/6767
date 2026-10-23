@@ -301,7 +301,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
             st.toast("🗑️ 已成功刪除該筆資料！", icon="✨")
             st.rerun()
 
-# 6. 通用圖表繪製函式（依金額自動以 10 的倍數/次方動態調整刻度）
+# 6. 通用圖表繪製函式（加入數字標籤與自適應優化）
 def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=False):
     chart_df = df_data.copy()
     
@@ -319,21 +319,29 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
         fig.update_traces(textposition='inside', textinfo='percent+label')
     elif chart_type == "📊 柱狀圖 (Bar)":
         fig = px.bar(chart_df, x=x_target, y=y_col, color=x_target, color_discrete_sequence=MACARON_COLORS, text_auto=',d')
-        fig.update_traces(marker_cornerradius=12)
+        fig.update_traces(marker_cornerradius=12, textposition='outside')
         fig.update_layout(showlegend=False, xaxis_title="", yaxis_title="金額 (NT$)")
     elif chart_type == "📈 折線圖 (Line)":
-        fig = px.line(chart_df, x=x_target, y=y_col, markers=True, color_discrete_sequence=['#ff6b81'])
-        fig.update_traces(line=dict(width=3), marker=dict(size=8))
+        fig = px.line(chart_df, x=x_target, y=y_col, markers=True, color_discrete_sequence=['#ff6b81'], text=y_col)
+        # 於折線點上方標註金額數字，避免小金額看不出來
+        fig.update_traces(
+            line=dict(width=3), 
+            marker=dict(size=10),
+            texttemplate='NT$ %{y:,.0f}',
+            textposition='top center'
+        )
         fig.update_layout(xaxis_title="", yaxis_title="金額 (NT$)")
 
     fig.update_xaxes(type='category')
     
-    # 自動依數據範圍動態調配刻度（維持 10 的倍數整數）
-    fig.update_yaxes(nticks=6, tickformat=',d')
+    # 動態優化 Y 軸範圍，確保數據點頂端有留白展示文字
+    if not chart_df.empty and y_col in chart_df.columns:
+        max_y = chart_df[y_col].max()
+        fig.update_yaxes(range=[0, max_y * 1.25], tickformat=',d', nticks=6)
 
     fig.update_layout(
         title="",
-        margin=dict(t=10, b=20, l=20, r=20),
+        margin=dict(t=30, b=20, l=20, r=20),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         font=dict(family="M PLUS Rounded 1c, Noto Sans TC, sans-serif", size=14, color="#5c4b51")
