@@ -221,7 +221,7 @@ def fetch_rate_by_date(currency_label, target_date):
 
     return fallback
 
-# 3. 馬卡龍風格 CSS 樣式
+# 3. 馬卡龍風格 CSS 樣式 (包含調暗亮紅儲存按鈕)
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Sans+TC:wght@500;700;900&display=swap');
@@ -319,6 +319,22 @@ st.markdown("""
         width: 100%;
     }
 
+    /* 🎨 3. 調暗「儲存按鈕」的色彩，變得溫柔質感 */
+    div.stButton > button[kind="primary"] {
+        background-color: #e05263 !important;
+        border-color: #e05263 !important;
+        color: white !important;
+        font-weight: 700 !important;
+        border-radius: 14px !important;
+        box-shadow: 0 4px 12px rgba(224, 82, 99, 0.25) !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        background-color: #c94353 !important;
+        border-color: #c94353 !important;
+        box-shadow: 0 6px 16px rgba(201, 67, 83, 0.35) !important;
+    }
+
     #MainMenu {visibility: hidden;} footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
@@ -414,15 +430,16 @@ def edit_expense_dialog(rec, rec_id, prefix):
     try:
         init_val = float(rec["original_amount"])
     except ValueError:
-        init_val = 0.0
+        init_val = None
 
-    # 使用 number_input 實現打字即時動態連動
+    # 🎯 2. 修改視窗：無預設 0.00，顯示 placeholder
     edit_amount_val = st.number_input(
         "修改金額", 
         value=init_val, 
         min_value=0.0, 
         step=1.0, 
         format="%.2f",
+        placeholder="請輸入金額...",
         key=f"a_{unique_key}"
     )
     
@@ -439,7 +456,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
         if st.button("💾 儲存變更", key=f"save_{unique_key}", use_container_width=True, type="primary"):
             if not edit_item.strip():
                 st.warning("⚠️ 項目名稱不可空白！")
-            elif edit_amount_val <= 0:
+            elif edit_amount_val is None or edit_amount_val <= 0:
                 st.warning("⚠️ 請輸入有效的數字金額！")
             else:
                 amount_twd_val = int(round(edit_amount_val * rate_val_input))
@@ -632,7 +649,7 @@ else:
 # 12. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：逐筆輸入與明細 (真正動態即時金額連動) ---
+# --- 分頁 1：逐筆輸入與明細 (真正動態即時連動 + 請輸入金額...) ---
 with tab_input:
     st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
@@ -661,11 +678,20 @@ with tab_input:
     with f_col2:
         input_category = st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=f"cat_{reset_key}")
     
-    # 🎯 關鍵改動：改為 number_input 達到輸入數字「即時動態連動」
-    input_amount = st.number_input("花費金額", min_value=0.0, step=1.0, format="%.2f", value=0.0, key=f"amt_{reset_key}")
+    # 🎯 1. 2. 真正一邊打字即時連動、且預設顯示「請輸入金額...」無 0.00
+    input_amount_str = st.text_input(
+        "花費金額", 
+        placeholder="請輸入金額...", 
+        key=f"amt_str_{reset_key}"
+    )
 
-    # 即時計算並更新預覽金額
-    calc_twd = int(round(input_amount * current_live_rate))
+    # 打字的當下即刻動態計算折算數字
+    try:
+        input_amount = float(input_amount_str) if input_amount_str.strip() else 0.0
+    except ValueError:
+        input_amount = 0.0
+
+    calc_twd = int(round(input_amount * current_live_rate)) if input_amount > 0 else 0
     st.info(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
 
     st.markdown("<br>", unsafe_allow_html=True)
