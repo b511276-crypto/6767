@@ -6,7 +6,7 @@ import sqlite3
 import hashlib
 import time
 import base64
-from PIL import Image
+from PIL import Image, ImageDraw
 import io
 import plotly.express as px
 
@@ -47,9 +47,15 @@ def init_db():
             currency TEXT NOT NULL,
             rate_used REAL NOT NULL,
             amount_twd INTEGER NOT NULL,
+            is_favorite INTEGER DEFAULT 0,
             FOREIGN KEY (username) REFERENCES users (username)
         )
     ''')
+    try:
+        c.execute("ALTER TABLE expenses ADD COLUMN is_favorite INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -105,13 +111,13 @@ def load_user_expenses(username):
     conn.close()
     return df
 
-def add_expense_db(username, date_str, year_num, month_str, item, category, orig_amt, currency, rate, amt_twd):
+def add_expense_db(username, date_str, year_num, month_str, item, category, orig_amt, currency, rate, amt_twd, is_favorite=0):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute('''
-        INSERT INTO expenses (username, date, year, month, item, category, original_amount, currency, rate_used, amount_twd)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (username, date_str, year_num, month_str, item, category, orig_amt, currency, rate, amt_twd))
+        INSERT INTO expenses (username, date, year, month, item, category, original_amount, currency, rate_used, amount_twd, is_favorite)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (username, date_str, year_num, month_str, item, category, orig_amt, currency, rate, amt_twd, is_favorite))
     conn.commit()
     conn.close()
 
@@ -125,6 +131,15 @@ def update_expense_db(expense_id, date_str, year_num, month_str, item, category,
     ''', (date_str, year_num, month_str, item, category, orig_amt, currency, rate, amt_twd, expense_id))
     conn.commit()
     conn.close()
+
+def toggle_favorite_db(expense_id, current_fav_status):
+    new_status = 0 if current_fav_status == 1 else 1
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("UPDATE expenses SET is_favorite = ? WHERE id = ?", (new_status, expense_id))
+    conn.commit()
+    conn.close()
+    return new_status
 
 def delete_expense_db(expense_id):
     conn = sqlite3.connect(DB_FILE)
@@ -406,6 +421,16 @@ if 'confirm_delete_account' not in st.session_state:
 if 'show_popup_type' not in st.session_state:
     st.session_state.show_popup_type = None
 
+# 用來做預填帶入的欄位 state
+if 'preset_item' not in st.session_state:
+    st.session_state.preset_item = ""
+if 'preset_cat' not in st.session_state:
+    st.session_state.preset_cat = None
+if 'preset_amt' not in st.session_state:
+    st.session_state.preset_amt = ""
+if 'preset_curr' not in st.session_state:
+    st.session_state.preset_curr = "NT 新台幣"
+
 # 🌟 5. 可愛的提示視窗
 @st.dialog("🌸 系統訊息")
 def cute_status_dialog(msg_type):
@@ -448,89 +473,47 @@ def cute_status_dialog(msg_type):
 if st.session_state.show_popup_type:
     cute_status_dialog(st.session_state.show_popup_type)
 
-# ✂️ 6. 彈出式「自由照片裁切」小視窗
-@st.dialog("✂️ 裁切頭像照片")
-def avatar_cropper_dialog():
-    st.markdown("請選擇一張電腦中的圖片，並在下方畫面上自由**拖拉/縮放**選擇裁切區域：")
+# ✂️ 6. 彈出式「圖片上傳與自動圓形裁切」小視窗
+@st.dialog("🖼️ 上傳與裁切個人頭像")
+def avatar_upload_dialog():
+    st.markdown("請選擇一張電腦中的圖片，系統會**自動進行圓形縮放裁切**並設定為個人頭像：")
+    uploaded_file = st.file_uploader("選擇圖片檔 (JPG, PNG, WEBP)", type=["jpg", "jpeg", "png", "webp"], key="dlg_avatar_uploader")
     
-    # 載入 Cropper.js 靜態庫與 CSS 樣式
-    cropper_html = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
-        <style>
-            body { font-family: sans-serif; background-color: #fffaf5; margin: 0; padding: 10px; text-align: center; }
-            .img-container { max-width: 100%; max-height: 320px; margin-bottom: 15px; background: #eee; border-radius: 12px; overflow: hidden; }
-            img { max-width: 100%; display: block; }
-            .btn-crop {
-                background-color: #e05263; color: white; border: none; padding: 10px 20px; font-size: 1rem;
-                font-weight: bold; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 10px rgba(224, 82, 99, 0.3);
-            }
-            .btn-crop:hover { background-color: #c94353; }
-            /* 圓形裁切外觀 */
-            .cropper-view-box, .cropper-face { border-radius: 50%; }
-        </style>
-    </head>
-    <body>
-        <input type="file" id="imageInput" accept="image/*" style="margin-bottom: 12px; width: 100%;">
-        <div class="img-container">
-            <img id="imageToCrop" src="" style="display:none;">
-        </div>
-        <button type="button" class="btn-crop" id="cropBtn" style="display:none;" onclick="cropAndSave()">✂️ 完成裁切並儲存</button>
-
-        <script>
-            var cropper;
-            var imageInput = document.getElementById('imageInput');
-            var imageToCrop = document.getElementById('imageToCrop');
-            var cropBtn = document.getElementById('cropBtn');
-
-            imageInput.addEventListener('change', function(e) {
-                var files = e.target.files;
-                if (files && files.length > 0) {
-                    var reader = new FileReader();
-                    reader.onload = function(e) {
-                        imageToCrop.src = e.target.result;
-                        imageToCrop.style.display = 'block';
-                        cropBtn.style.display = 'inline-block';
-                        if (cropper) { cropper.destroy(); }
-                        cropper = new Cropper(imageToCrop, {
-                            aspectRatio: 1,
-                            viewMode: 1,
-                            dragMode: 'move',
-                            autoCropArea: 0.8,
-                            restore: false,
-                            guides: false,
-                            center: true,
-                            highlight: false,
-                            cropBoxMovable: true,
-                            cropBoxResizable: true,
-                            toggleDragModeOnDblclick: false,
-                        });
-                    };
-                    reader.readAsDataURL(files[0]);
-                }
-            });
-
-            function cropAndSave() {
-                if (!cropper) return;
-                var canvas = cropper.getCroppedCanvas({
-                    width: 200,
-                    height: 200
-                });
-                var croppedBase64 = canvas.toDataURL('image/png');
-                
-                // 透過 query_params 將裁切後的 Base64 送回 Python 後端
-                const url = new URL(window.location.href);
-                url.searchParams.set('cropped_avatar_data', croppedBase64);
-                window.location.href = url.href;
-            }
-        </script>
-    </body>
-    </html>
-    """
-    st.components.v1.html(cropper_html, height=430)
+    if uploaded_file is not None:
+        try:
+            image = Image.open(uploaded_file).convert("RGBA")
+            # 裁切為正方形
+            min_dim = min(image.size)
+            left = (image.width - min_dim) / 2
+            top = (image.height - min_dim) / 2
+            right = (image.width + min_dim) / 2
+            bottom = (image.height + min_dim) / 2
+            image = image.crop((left, top, right, bottom))
+            image = image.resize((200, 200), Image.LANCZOS)
+            
+            # 製作圓形遮罩
+            mask = Image.new('L', (200, 200), 0)
+            draw = ImageDraw.Draw(mask)
+            draw.ellipse((0, 0, 200, 200), fill=255)
+            
+            output = Image.new('RGBA', (200, 200), (0, 0, 0, 0))
+            output.paste(image, (0, 0), mask)
+            
+            buffered = io.BytesIO()
+            output.save(buffered, format="PNG")
+            img_b64 = "data:image/png;base64," + base64.b64encode(buffered.getvalue()).decode()
+            
+            st.image(output, caption="✂️ 裁切後預覽", width=120)
+            
+            if st.button("💖 確定套用此頭像", type="primary", use_container_width=True):
+                if st.session_state.logged_in:
+                    update_user_avatar(st.session_state.username, "img", img_b64)
+                    st.session_state.avatar_type = "img"
+                    st.session_state.avatar_data = img_b64
+                    st.toast("🎉 頭像更新成功！", icon="✨")
+                    st.rerun()
+        except Exception as e:
+            st.error("⚠️ 圖片解析失敗，請試試其他圖片檔喔！")
 
 # 7. 彈出式修改記帳小視窗
 @st.dialog("✏️ 修改記帳紀錄")
@@ -618,7 +601,8 @@ def edit_expense_dialog(rec, rec_id, prefix):
                         "original_amount": formatted_orig,
                         "currency": edit_currency,
                         "rate_used": round(rate_val_input, 4),
-                        "amount_twd": amount_twd_val
+                        "amount_twd": amount_twd_val,
+                        "is_favorite": rec.get("is_favorite", 0)
                     }
                 st.session_state.show_popup_type = "updated"
                 st.rerun()
@@ -675,17 +659,6 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
     )
     st.plotly_chart(fig, use_container_width=True, key=key_name)
 
-# 處理裁切完成回傳的圖片
-if "cropped_avatar_data" in st.query_params:
-    cropped_b64 = st.query_params.get("cropped_avatar_data")
-    st.query_params.clear()
-    if st.session_state.logged_in and cropped_b64:
-        update_user_avatar(st.session_state.username, "img", cropped_b64)
-        st.session_state.avatar_type = "img"
-        st.session_state.avatar_data = cropped_b64
-        st.toast("🎉 新頭像裁切並更新成功！", icon="✨")
-        st.rerun()
-
 # 9. 側邊欄：登入、註冊與上傳頭像
 with st.sidebar:
     st.title("🌸 帳號管理")
@@ -736,7 +709,7 @@ with st.sidebar:
         """, unsafe_allow_html=True)
 
         if st.button("🖼️ 選擇並裁切照片頭像", use_container_width=True):
-            avatar_cropper_dialog()
+            avatar_upload_dialog()
 
         if st.session_state.avatar_type == "img":
             if st.button("🔄 恢復預設首字頭像", use_container_width=True):
@@ -801,7 +774,8 @@ if st.session_state.logged_in and len(st.session_state.guest_expenses) > 0:
                 orig_amt=rec["original_amount"],
                 currency=rec["currency"],
                 rate=rec["rate_used"],
-                amt_twd=rec["amount_twd"]
+                amt_twd=rec["amount_twd"],
+                is_favorite=rec.get("is_favorite", 0)
             )
         st.session_state.guest_expenses = []
         st.toast("🎉 舊紀錄已完美匯入你的個人帳號中！", icon="✨")
@@ -817,10 +791,36 @@ else:
 # 13. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：單一原生 HTML 表單 (超高感度即時計算、無多餘輸入框) ---
+# --- 分頁 1：單一原生輸入框，支援常用下拉預填 ---
 with tab_input:
     st.subheader("💮 新增一筆消費")
     reset_key = st.session_state.form_reset_key
+
+    # 🌟 ⭐ 常用下拉選單邏輯
+    fav_options = ["不選擇（手動輸入）"]
+    fav_items_map = {}
+    
+    if not df.empty:
+        fav_df = df[df.get("is_favorite", 0) == 1]
+        for _, f_row in fav_df.iterrows():
+            lbl = f"⭐ {f_row['item']} | {f_row['category']} | {f_row['currency']} {f_row['original_amount']}"
+            fav_options.append(lbl)
+            fav_items_map[lbl] = f_row
+
+    selected_fav = st.selectbox("⭐ 常用消費（選擇後自動填入文字與金額，不會直接送出）：", fav_options, key=f"fav_select_{reset_key}")
+    
+    # 選擇常用後動態賦予預填值
+    if selected_fav != "不選擇（手動輸入）" and selected_fav in fav_items_map:
+        f_data = fav_items_map[selected_fav]
+        default_item_val = f_data["item"]
+        default_cat_val = f_data["category"] if f_data["category"] in CATEGORIES else None
+        default_amt_val = str(f_data["original_amount"])
+        default_curr_val = f_data["currency"] if f_data["currency"] in CURRENCY_MAP else "NT 新台幣"
+    else:
+        default_item_val = st.session_state.preset_item
+        default_cat_val = st.session_state.preset_cat
+        default_amt_val = st.session_state.preset_amt
+        default_curr_val = st.session_state.preset_curr
 
     def on_change_main_input():
         st.session_state.show_popup_type = "switching"
@@ -836,62 +836,31 @@ with tab_input:
             on_change=on_change_main_input
         )
     with input_col2:
-        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=0, key=f"curr_{reset_key}", on_change=on_change_main_input)
+        curr_idx = list(CURRENCY_MAP.keys()).index(default_curr_val) if default_curr_val in CURRENCY_MAP else 0
+        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), index=curr_idx, key=f"curr_{reset_key}", on_change=on_change_main_input)
 
     current_live_rate = fetch_rate_by_date(currency, input_date)
 
     f_col1, f_col2 = st.columns(2)
     with f_col1:
-        input_item = st.text_input("消費項目", placeholder="例如：韓國炸雞 🍗", key=f"item_{reset_key}")
+        input_item = st.text_input("消費項目", value=default_item_val, placeholder="例如：韓國炸雞 🍗", key=f"item_{reset_key}")
     with f_col2:
-        input_category = st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=f"cat_{reset_key}")
+        cat_idx = CATEGORIES.index(default_cat_val) if default_cat_val in CATEGORIES else None
+        input_category = st.selectbox("消費分類", CATEGORIES, index=cat_idx, placeholder="請選擇分類...", key=f"cat_{reset_key}")
     
     st.markdown("**花費金額**")
+    input_amount_str = st.text_input("請輸入金額...", value=default_amt_val, placeholder="請輸入金額...", key=f"amt_str_{reset_key}", label_visibility="collapsed")
 
-    # 🚀 前端原生 HTML/JS 獨立表單：0 延遲即時計算，敲字瞬間變動！
-    native_form_html = f"""
-    <div style="font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif;">
-        <form id="expenseForm" action="" method="post" style="margin:0; padding:0;">
-            <input type="text" id="live_amount_input" name="submitted_amount" placeholder="請輸入金額..." 
-                   style="width: 100%; padding: 12px 16px; font-size: 1rem; border-radius: 12px; border: 1px solid #dcdfe6; background-color: #ffffff; color: #5c4b51; outline: none; box-sizing: border-box;"
-                   oninput="calcRealtime(this.value)">
-            
-            <div style="margin-top: 12px; background-color: #e8f4f8; padding: 12px 16px; border-radius: 12px; color: #2c3e50; font-size: 0.95rem; font-weight: 500;">
-                💡 當前即時牌告匯率：<b>1 {currency.split()[1]} ≈ {current_live_rate} TWD</b> | 折算預覽：<b id="live_calc_preview" style="color: #0056b3; font-size: 1.1rem;">NT$ 0</b>
-            </div>
+    # 即時計算台幣
+    try:
+        input_amount = float(input_amount_str.strip()) if input_amount_str.strip() else 0.0
+    except ValueError:
+        input_amount = 0.0
 
-            <button type="submit" id="nativeSubmitBtn" 
-                    style="width: 100%; margin-top: 16px; background-color: #e05263; color: white; border: none; padding: 12px 18px; border-radius: 14px; font-weight: 700; font-size: 1.05rem; cursor: pointer; box-shadow: 0 4px 12px rgba(224, 82, 99, 0.25);">
-                💖 儲存這筆紀錄
-            </button>
-        </form>
-    </div>
-    <script>
-        function calcRealtime(val) {{
-            var rate = {current_live_rate};
-            var cleanVal = val.replace(/[^0-9.]/g, '');
-            var num = parseFloat(cleanVal);
-            var result = 0;
-            if (!isNaN(num) && num > 0) {{
-                result = Math.round(num * rate);
-            }}
-            document.getElementById('live_calc_preview').innerText = 'NT$ ' + result.toLocaleString();
-        }}
-    </script>
-    """
-    
-    st.components.v1.html(native_form_html, height=185)
+    calc_twd = int(round(input_amount * current_live_rate)) if input_amount > 0 else 0
+    st.info(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
 
-    # 處理表單提交
-    submitted_amt_str = st.query_params.get("submitted_amount", "")
-
-    if submitted_amt_str:
-        st.query_params.clear()
-        try:
-            input_amount = float(submitted_amt_str)
-        except ValueError:
-            input_amount = 0.0
-
+    if st.button("💖 儲存這筆紀錄", use_container_width=True, type="primary", key=f"submit_{reset_key}"):
         if not input_item.strip():
             st.warning("⚠️ 請填寫消費項目名稱喔！")
         elif input_category is None:
@@ -929,7 +898,8 @@ with tab_input:
                     "original_amount": formatted_orig,
                     "currency": currency,
                     "rate_used": round(current_live_rate, 4),
-                    "amount_twd": amount_twd_val
+                    "amount_twd": amount_twd_val,
+                    "is_favorite": 0
                 }
                 st.session_state.guest_expenses.append(new_rec)
 
@@ -958,6 +928,8 @@ with tab_input:
         
         for idx, rec in enumerate(display_list):
             rec_id = rec.get("id", idx)
+            is_fav = rec.get("is_favorite", 0)
+            star_icon = "⭐" if is_fav == 1 else "☆"
             
             left_info = f"🗓️ {rec['date']} | {rec['category']} | {rec['item']}"
             if rec['currency'] == "NT 新台幣":
@@ -965,7 +937,7 @@ with tab_input:
             else:
                 right_amount = f"{rec['currency']} {rec['original_amount']} (折算 NT {rec['amount_twd']:,}，匯率 {rec['rate_used']:.4f})"
             
-            list_col1, list_col2, list_col3 = st.columns([5, 4, 1.5])
+            list_col1, list_col2, list_col3, list_col4 = st.columns([4.5, 4, 1.2, 1.2])
             with list_col1:
                 st.write(f"**{left_info}**")
             with list_col2:
@@ -973,6 +945,18 @@ with tab_input:
             with list_col3:
                 if st.button("✏️ 修改", key=f"btn_edit_{prefix}_{rec_id}", use_container_width=True):
                     edit_expense_dialog(rec, rec_id, prefix)
+            with list_col4:
+                if st.button(star_icon, key=f"btn_fav_{prefix}_{rec_id}", use_container_width=True, help="點擊設定/取消為常用項目"):
+                    if st.session_state.logged_in:
+                        new_st = toggle_favorite_db(rec_id, is_fav)
+                    else:
+                        st.session_state.guest_expenses[rec_id]["is_favorite"] = 0 if is_fav == 1 else 1
+                        new_st = st.session_state.guest_expenses[rec_id]["is_favorite"]
+                    
+                    msg = "已設為常用項目！" if new_st == 1 else "已從常用項目移除！"
+                    st.toast(f"✨ {msg}", icon="⭐")
+                    st.rerun()
+
             st.markdown("<hr style='margin: 0.2rem 0; border: none; border-top: 1px dashed #ffd1dc;'>", unsafe_allow_html=True)
             
         if len(expenses_list) > 10:
