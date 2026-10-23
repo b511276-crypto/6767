@@ -291,26 +291,26 @@ st.markdown("""
     .stat-label { font-size: 0.95rem; color: #8b7d83; font-weight: 700; }
     .stat-value { font-size: 2.1rem; font-weight: 800; color: #ff6b81; margin-top: 0.3rem; }
     
-    /* 🎯 專門修正右側金額的對齊 */
-    .amount-right-align {
-        text-align: right !important;
-        font-weight: 700;
-        color: #5c4b51;
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        min-height: 40px;
-        padding-right: 10px;
-        box-sizing: border-box;
-    }
-
+    /* 🎯 明細對齊修復 CSS */
     .item-left-align {
         display: flex;
         align-items: center;
-        min-height: 40px;
+        height: 38px;
         font-weight: 700;
         color: #5c4b51;
+        font-size: 0.95rem;
+    }
+
+    .amount-right-align {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        height: 38px;
+        font-weight: 700;
+        color: #5c4b51;
+        text-align: right;
+        font-size: 0.95rem;
+        padding-right: 5px;
     }
 
     div.stButton > button[kind="primary"] {
@@ -722,7 +722,7 @@ else:
 # 13. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：全整合 HTML/JS 表單，完美支援常用預填與 0 延遲即時計算 ---
+# --- 分頁 1：日期與常用並排在第一行，全整合 HTML/JS 表單 ---
 with tab_input:
     reset_key = st.session_state.form_reset_key
 
@@ -755,15 +755,9 @@ with tab_input:
     def on_change_main_input():
         st.session_state.show_popup_type = "switching"
 
-    # 📍 頂部對齊：左邊放「新增一筆消費」，右邊放「常用」下拉選單
+    # 🎯【重點修正 1】將「選擇日期」與「常用」併排在第一行雙欄中！
     top_col1, top_col2 = st.columns(2)
     with top_col1:
-        st.subheader("💮 新增一筆消費")
-    with top_col2:
-        st.selectbox("常用", fav_options, key=f"fav_select_{reset_key}", on_change=on_fav_change)
-
-    input_col1, input_col2 = st.columns(2)
-    with input_col1:
         input_date = st.date_input(
             "選擇日期 (年/月/日)", 
             datetime.now().date(), 
@@ -772,8 +766,8 @@ with tab_input:
             key=f"date_{reset_key}", 
             on_change=on_change_main_input
         )
-    with input_col2:
-        st.write("") # 空間排版補正
+    with top_col2:
+        st.selectbox("常用", fav_options, key=f"fav_select_{reset_key}", on_change=on_fav_change)
 
     # 取得目前預設值
     p_item = st.session_state.preset_item
@@ -788,7 +782,7 @@ with tab_input:
     # 即時計算牌告匯率字串
     rates_js_obj = "{" + ", ".join([f'"{k}": {fetch_rate_by_date(k, input_date)}' for k in CURRENCY_MAP.keys()]) + "}"
 
-    # 🎯 全打包 HTML/JS 獨立表單
+    # 全打包 HTML/JS 獨立表單
     full_form_html = f"""
     <div style="font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif; color: #5c4b51;">
         <form id="fullExpenseForm" action="" method="post" style="margin:0; padding:0;">
@@ -951,8 +945,8 @@ with tab_input:
             else:
                 right_amount = f"{rec['currency']} {rec['original_amount']} (折算 NT {rec['amount_twd']:,}，匯率 {rec['rate_used']:.4f})"
             
-            # 🎯 完美對齊：拉寬金額欄位比例 (4 : 5 : 1 : 1)，確保不會換行爆開
-            list_col1, list_col2, list_col3, list_col4 = st.columns([4, 5, 1, 1])
+            # 🎯【重點修正 2】調整欄位寬度與 CSS 強制文字垂直居中且靠右！
+            list_col1, list_col2, list_col3, list_col4 = st.columns([3.5, 5.5, 1, 1])
             with list_col1:
                 st.markdown(f'<div class="item-left-align">{left_info}</div>', unsafe_allow_html=True)
             with list_col2:
