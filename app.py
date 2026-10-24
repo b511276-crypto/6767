@@ -847,7 +847,7 @@ with tab_input:
             st.session_state[k_cat] = f["category"] if f["category"] in CATEGORIES else None
             st.session_state[k_amt] = str(f["original_amount"])
             st.session_state[k_curr] = f["currency"] if f["currency"] in CURRENCY_MAP else "NT 新台幣"
-            st.session_state[k_note] = str(f.get("note", "")) if (pd.notna(f.get("note")) and f.get("note")) else ""
+            st.session_state[k_note] = ""  # 按常用時保持備註空白，不自動帶入舊備註
         else:
             st.session_state[k_item] = ""
             st.session_state[k_cat] = None
