@@ -790,11 +790,11 @@ else:
 # 13. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：Streamlit 原生 State 完美相容版（常用連動 + 預覽跳動 + 100% 寫入）---
+# --- 分頁 1：Streamlit 原生 Reactive 完美相容版 ---
 with tab_input:
     reset_key = st.session_state.form_reset_key
 
-    # 定義每個 Widget 的專屬 State Key
+    # Widget Keys
     k_fav = f"fav_{reset_key}"
     k_item = f"item_{reset_key}"
     k_cat = f"cat_{reset_key}"
@@ -802,7 +802,7 @@ with tab_input:
     k_amt = f"amt_{reset_key}"
     k_date = f"date_{reset_key}"
 
-    # 初始化 State 預設值（確保鍵值存在）
+    # State 初始化
     if k_item not in st.session_state:
         st.session_state[k_item] = ""
     if k_cat not in st.session_state:
@@ -812,7 +812,7 @@ with tab_input:
     if k_curr not in st.session_state:
         st.session_state[k_curr] = "NT 新台幣"
 
-    # 常用選單對照 Map
+    # 常用項目選項 map
     fav_options = ["不選擇常用（手動輸入）"]
     fav_items_map = {}
     if not df.empty and "is_favorite" in df.columns:
@@ -823,7 +823,7 @@ with tab_input:
                 fav_options.append(lbl)
                 fav_items_map[lbl] = f_row
 
-    # 常用選單觸發時：直接修改 Widget Key 的值，達成自動填入/清空
+    # 常用選單切換 callback
     def on_fav_change():
         selected = st.session_state.get(k_fav)
         if selected and selected != "不選擇常用（手動輸入）" and selected in fav_items_map:
@@ -833,7 +833,6 @@ with tab_input:
             st.session_state[k_amt] = str(f["original_amount"])
             st.session_state[k_curr] = f["currency"] if f["currency"] in CURRENCY_MAP else "NT 新台幣"
         else:
-            # 切回手動輸入：立刻清空欄位
             st.session_state[k_item] = ""
             st.session_state[k_cat] = None
             st.session_state[k_amt] = ""
@@ -863,20 +862,20 @@ with tab_input:
     with f_col2:
         st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=k_cat)
 
-    # 第三行：幣別與金額輸入
+    # 第三行：幣別與花費金額
     amt_col1, amt_col2 = st.columns(2)
     with amt_col1:
         st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), key=k_curr, on_change=trigger_rerun_pop)
     with amt_col2:
         st.text_input("花費金額", placeholder="請輸入金額...", key=k_amt)
 
-    # 即時從 Session State 讀取目前輸入的數值
+    # 讀取即時輸入狀態
     curr_item = st.session_state.get(k_item, "")
     curr_cat = st.session_state.get(k_cat, None)
     curr_curr = st.session_state.get(k_curr, "NT 新台幣")
     curr_amt_str = st.session_state.get(k_amt, "")
 
-    # 即時計算牌告匯率與折算金額
+    # 即時計算牌告匯率與折算預覽
     current_live_rate = fetch_rate_by_date(curr_curr, input_date)
     try:
         input_amount = float(curr_amt_str.strip()) if curr_amt_str and curr_amt_str.strip() else 0.0
@@ -887,7 +886,7 @@ with tab_input:
     curr_code_display = curr_curr.split()[1] if len(curr_curr.split()) > 1 else "TWD"
     st.info(f"💡 當前即時牌告匯率：**1 {curr_code_display} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
 
-    # 💖 儲存按鈕處理 (100% 穩定寫入資料庫，絕不上鎖)
+    # 儲存按鈕處理 (100% 能點擊，資料一定存入)
     if st.button("💖 儲存這筆紀錄", use_container_width=True, type="primary", key=f"submit_{reset_key}"):
         if not curr_item or not curr_item.strip():
             st.warning("⚠️ 請填寫消費項目名稱喔！")
@@ -930,7 +929,6 @@ with tab_input:
                 }
                 st.session_state.guest_expenses.append(new_rec)
 
-            # 重設狀態以供下一筆輸入
             st.session_state.form_reset_key += 1
             st.session_state.show_popup_type = "saved"
             st.rerun()
