@@ -264,7 +264,7 @@ def fetch_rate_by_date(currency_label, target_date):
 
     return fallback
 
-# 3. 全版面馬卡龍風格 CSS 裝飾與美化
+# 3. 全版面美化 CSS 樣式
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Sans+TC:wght@500;700;900&display=swap');
@@ -277,70 +277,119 @@ st.markdown("""
     
     .stMarkdown a, .cute-header a { display: none !important; }
 
-    /* 🌸 側邊欄「收起」按鈕精準美化（防止重複與圖示重疊） */
-    button[data-testid="stSidebarCollapseButton"] svg {
+    /* 🌸 1. 徹底隱藏側邊欄原生 << 圖示，替換為精美「◀ 收起 🌸」膠囊按鈕 */
+    [data-testid="stSidebarCollapseButton"] svg,
+    button[aria-label*="sidebar" i] svg,
+    button[aria-label*="Sidebar" i] svg {
         display: none !important;
+        width: 0 !important;
+        height: 0 !important;
     }
-    button[data-testid="stSidebarCollapseButton"] {
+    [data-testid="stSidebarCollapseButton"],
+    button[aria-label*="sidebar" i],
+    button[aria-label*="Sidebar" i] {
         background: #ffffff !important;
         border: 2px solid #ffd1dc !important;
-        border-radius: 16px !important;
-        padding: 4px 10px !important;
+        border-radius: 20px !important;
+        padding: 5px 14px !important;
         box-shadow: 0 4px 12px rgba(255, 183, 197, 0.35) !important;
+        width: auto !important;
+        height: auto !important;
+        min-height: 34px !important;
         transition: all 0.25s ease-in-out !important;
     }
-    button[data-testid="stSidebarCollapseButton"]::after {
-        content: "◀ 收起 🌸";
-        font-size: 0.85rem;
-        font-weight: 800;
-        color: #ff6b81;
-        white-space: nowrap;
+    [data-testid="stSidebarCollapseButton"]::after,
+    button[aria-label*="sidebar" i]::after,
+    button[aria-label*="Sidebar" i]::after {
+        content: "◀ 收起 🌸" !important;
+        font-size: 0.88rem !important;
+        font-weight: 800 !important;
+        color: #ff6b81 !important;
+        font-family: 'M PLUS Rounded 1c', sans-serif !important;
+        white-space: nowrap !important;
     }
-    button[data-testid="stSidebarCollapseButton"]:hover {
+    [data-testid="stSidebarCollapseButton"]:hover,
+    button[aria-label*="sidebar" i]:hover {
         background-color: #fff0f3 !important;
         border-color: #ffb7c5 !important;
-        transform: scale(1.05);
+        transform: scale(1.05) !important;
     }
 
-    /* 🎨 輸入欄位裝飾美化 */
-    div[data-baseweb="input"], div[data-baseweb="select"] > div {
-        border-radius: 14px !important;
-        border: 2px solid #ffd1dc !important;
-        background-color: #ffffff !important;
-        transition: all 0.2s ease-in-out !important;
-    }
-    div[data-baseweb="input"]:focus-within, div[data-baseweb="select"] > div:focus-within {
-        border-color: #ff6b81 !important;
-        box-shadow: 0 0 0 3px rgba(255, 107, 129, 0.2) !important;
-    }
-
-    /* 🌸 分頁 Tabs 馬卡龍可愛按鈕化 */
+    /* 🌸 2. 圓角膠囊 Tab 頁籤（隱藏直條底線） */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-        background-color: #fff0f3;
-        padding: 8px;
-        border-radius: 20px;
-        border: 2px solid #ffd1dc;
-        margin-bottom: 1rem;
+        gap: 12px !important;
+        background-color: #fff0f3 !important;
+        padding: 10px 14px !important;
+        border-radius: 25px !important;
+        border: 2px dashed #ffd1dc !important;
+        margin-bottom: 1.5rem !important;
     }
     .stTabs [data-baseweb="tab"] {
-        height: 45px;
-        border-radius: 14px;
-        background-color: transparent;
+        height: 44px !important;
+        border-radius: 18px !important; /* 🌟 圓角 */
+        background-color: #ffffff !important;
         color: #7d5a60 !important;
         font-weight: 700 !important;
-        border: none !important;
+        border: 2px solid #ffe4e1 !important;
         padding: 0px 22px !important;
         transition: all 0.2s ease-in-out !important;
+        box-shadow: 0 2px 6px rgba(255, 209, 220, 0.2) !important;
     }
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #ffb7c5, #ffdac1) !important;
         color: #ffffff !important;
         font-weight: 800 !important;
-        box-shadow: 0 4px 12px rgba(255, 183, 197, 0.4) !important;
+        border: 2px solid #ffb7c5 !important;
+        box-shadow: 0 4px 12px rgba(255, 183, 197, 0.45) !important;
+    }
+    /* 移除原生底線 */
+    .stTabs [data-baseweb="tab-highlight"],
+    .stTabs [data-baseweb="tab-border-none"] {
+        display: none !important;
     }
 
-    /* 💖 標題與 Header 美化 */
+    /* 🌸 3. 中央大版面裝飾卡片（白色柔和卡片背景） */
+    .macaron-card {
+        background-color: #ffffff;
+        border: 2px solid #ffe4e1;
+        border-radius: 26px;
+        padding: 1.8rem;
+        box-shadow: 0 8px 25px rgba(255, 209, 220, 0.25);
+        margin-bottom: 2rem;
+        position: relative;
+    }
+    .macaron-card::before {
+        content: "🎀 每日記帳卡";
+        position: absolute;
+        top: -15px;
+        left: 24px;
+        font-size: 0.85rem;
+        font-weight: 800;
+        color: #ff6b81;
+        background: #fff0f3;
+        padding: 2px 12px;
+        border-radius: 12px;
+        border: 1px solid #ffd1dc;
+        box-shadow: 0 2px 6px rgba(255, 183, 197, 0.2);
+    }
+
+    /* 🎨 輸入欄位裝飾美化 */
+    div[data-baseweb="input"], div[data-baseweb="select"] > div {
+        border-radius: 16px !important;
+        border: 2px solid #ffe0e6 !important;
+        background-color: #fffafc !important;
+    }
+    div[data-baseweb="input"]:focus-within, div[data-baseweb="select"] > div:focus-within {
+        border-color: #ff6b81 !important;
+        background-color: #ffffff !important;
+        box-shadow: 0 0 0 4px rgba(255, 107, 129, 0.18) !important;
+    }
+    .stTextInput label, .stSelectbox label, .stDateInput label {
+        font-weight: 800 !important;
+        color: #6c525a !important;
+        font-size: 0.95rem !important;
+    }
+
     .cute-header {
         background: linear-gradient(135deg, #ffb7c5, #ffe4e1);
         padding: 2.2rem 1.5rem;
@@ -350,6 +399,7 @@ st.markdown("""
         margin-bottom: 2rem;
         width: 100%;
     }
+    
     .cute-header h1 { 
         font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif;
         font-weight: 800;
@@ -362,6 +412,7 @@ st.markdown("""
         line-height: 1.3;
         text-align: center;
     }
+    
     .cute-header p { 
         font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif;
         color: #7d5a60; 
@@ -372,32 +423,17 @@ st.markdown("""
         text-align: center;
     }
 
-    /* 📊 統計卡片美化 */
-    .stat-card {
-        background-color: #ffffff;
-        border: 2px solid #ffd1dc;
-        border-radius: 22px;
-        padding: 1.3rem;
-        text-align: center;
-        box-shadow: 0 6px 18px rgba(255, 209, 220, 0.25);
-        margin-bottom: 1.5rem;
-        transition: transform 0.2s ease;
-    }
-    .stat-card:hover {
-        transform: translateY(-2px);
-    }
-    .stat-label { font-size: 0.95rem; color: #8b7d83; font-weight: 700; }
-    .stat-value { font-size: 2.2rem; font-weight: 800; color: #ff6b81; margin-top: 0.3rem; }
-
     .popup-box {
         text-align: center;
         padding: 1.5rem 1rem;
     }
+    
     .popup-icon {
         font-size: 3.2rem;
         margin-bottom: 0.8rem;
         animation: pulse 1.2s infinite alternate;
     }
+
     @keyframes pulse {
         0% { transform: scale(1); }
         100% { transform: scale(1.15); }
@@ -406,12 +442,13 @@ st.markdown("""
     .sidebar-user-card {
         background-color: #ffffff;
         border: 2px solid #ffd1dc;
-        border-radius: 20px;
+        border-radius: 18px;
         padding: 1.2rem;
         text-align: center;
         box-shadow: 0 4px 12px rgba(255, 209, 220, 0.25);
         margin-bottom: 1.2rem;
     }
+    
     .avatar-circle-img {
         width: 75px;
         height: 75px;
@@ -422,6 +459,7 @@ st.markdown("""
         margin: 0 auto 0.6rem auto;
         display: block;
     }
+
     .avatar-circle-char {
         width: 75px;
         height: 75px;
@@ -435,6 +473,7 @@ st.markdown("""
         box-shadow: 0 4px 10px rgba(255, 183, 197, 0.4);
         margin: 0 auto 0.6rem auto;
     }
+
     .sidebar-user-card h3 {
         color: #ff6b81;
         font-size: 1.3rem;
@@ -442,6 +481,18 @@ st.markdown("""
         font-weight: 800;
     }
 
+    .stat-card {
+        background-color: #ffffff;
+        border: 2px solid #ffd1dc;
+        border-radius: 20px;
+        padding: 1.2rem;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(255, 209, 220, 0.2);
+        margin-bottom: 1.5rem;
+    }
+    .stat-label { font-size: 0.95rem; color: #8b7d83; font-weight: 700; }
+    .stat-value { font-size: 2.1rem; font-weight: 800; color: #ff6b81; margin-top: 0.3rem; }
+    
     .amount-right-align {
         text-align: right !important;
         font-weight: 700;
@@ -920,6 +971,9 @@ with tab_input:
     def trigger_rerun_pop():
         st.session_state.show_popup_type = "switching"
 
+    # 🌸 3. 主大版面裝飾卡片（將輸入表單包裹於裝飾卡片內）
+    st.markdown('<div class="macaron-card">', unsafe_allow_html=True)
+
     # 第一行：日期與常用選單
     top_col1, top_col2 = st.columns(2)
     with top_col1:
@@ -1018,7 +1072,8 @@ with tab_input:
             st.session_state.show_popup_type = "saved"
             st.rerun()
 
-    st.markdown("---")
+    st.markdown('</div>', unsafe_allow_html=True) # 結束卡片包裹
+
     st.subheader("📜 最近的記帳明細")
     if not df.empty:
         filter_col1, filter_col2 = st.columns(2)
