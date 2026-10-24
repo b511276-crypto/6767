@@ -790,7 +790,7 @@ else:
 # 13. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：Streamlit 原生 Reactive 完美相容版 ---
+# --- 分頁 1：記帳主介面 ---
 with tab_input:
     reset_key = st.session_state.form_reset_key
 
@@ -875,7 +875,7 @@ with tab_input:
     curr_curr = st.session_state.get(k_curr, "NT 新台幣")
     curr_amt_str = st.session_state.get(k_amt, "")
 
-    # 即時計算牌告匯率與折算預覽
+    # 計算牌告匯率與折算預覽
     current_live_rate = fetch_rate_by_date(curr_curr, input_date)
     try:
         input_amount = float(curr_amt_str.strip()) if curr_amt_str and curr_amt_str.strip() else 0.0
@@ -884,9 +884,9 @@ with tab_input:
 
     calc_twd = int(round(input_amount * current_live_rate)) if input_amount > 0 else 0
     curr_code_display = curr_curr.split()[1] if len(curr_curr.split()) > 1 else "TWD"
-    st.info(f"💡 當前即時牌告匯率：**1 {curr_code_display} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
+    st.info(f"💡 當前即時牌告匯率：**1 {curr_code_display} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}** (按下Enter即可預覽折算金額!)")
 
-    # 儲存按鈕處理 (100% 能點擊，資料一定存入)
+    # 儲存按鈕處理
     if st.button("💖 儲存這筆紀錄", use_container_width=True, type="primary", key=f"submit_{reset_key}"):
         if not curr_item or not curr_item.strip():
             st.warning("⚠️ 請填寫消費項目名稱喔！")
