@@ -276,7 +276,41 @@ st.markdown("""
     }
     
     .stMarkdown a, .cute-header a { display: none !important; }
-    
+
+    /* 🌸 側邊欄「收起」按鈕字體與裝飾美化 */
+    [data-testid="stSidebarCollapseButton"] svg,
+    [data-testid="stSidebarHeader"] button svg {
+        display: none !important;
+    }
+    [data-testid="stSidebarCollapseButton"],
+    [data-testid="stSidebarHeader"] button {
+        width: auto !important;
+        height: auto !important;
+        background: transparent !important;
+        border: none !important;
+    }
+    [data-testid="stSidebarCollapseButton"]::after,
+    [data-testid="stSidebarHeader"] button::after {
+        content: "◀ 收起 🌸";
+        font-size: 0.85rem;
+        font-weight: 800;
+        color: #ff6b81;
+        background-color: #ffffff;
+        padding: 5px 12px;
+        border-radius: 14px;
+        border: 2px solid #ffd1dc;
+        box-shadow: 0 3px 10px rgba(255, 183, 197, 0.35);
+        white-space: nowrap;
+        display: inline-block;
+        transition: all 0.2s ease;
+    }
+    [data-testid="stSidebarCollapseButton"]:hover::after,
+    [data-testid="stSidebarHeader"] button:hover::after {
+        background-color: #fff0f3;
+        border-color: #ffb7c5;
+        transform: scale(1.05);
+    }
+
     .cute-header {
         background: linear-gradient(135deg, #ffb7c5, #ffe4e1);
         padding: 2.2rem 1.5rem;
@@ -847,7 +881,7 @@ with tab_input:
             st.session_state[k_cat] = f["category"] if f["category"] in CATEGORIES else None
             st.session_state[k_amt] = str(f["original_amount"])
             st.session_state[k_curr] = f["currency"] if f["currency"] in CURRENCY_MAP else "NT 新台幣"
-            st.session_state[k_note] = ""  # 按常用時保持備註空白，不自動帶入舊備註
+            st.session_state[k_note] = ""  # 按常用時保持備註空白
         else:
             st.session_state[k_item] = ""
             st.session_state[k_cat] = None
