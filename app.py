@@ -49,13 +49,15 @@ def init_db():
             rate_used REAL NOT NULL,
             amount_twd INTEGER NOT NULL,
             is_favorite INTEGER DEFAULT 0,
+            note TEXT DEFAULT '',
             FOREIGN KEY (username) REFERENCES users (username)
         )
     ''')
-    try:
-        c.execute("ALTER TABLE expenses ADD COLUMN is_favorite INTEGER DEFAULT 0")
-    except sqlite3.OperationalError:
-        pass
+    for col, default_val in [("is_favorite", "0"), ("note", "''")]:
+        try:
+            c.execute(f"ALTER TABLE expenses ADD COLUMN {col} TEXT DEFAULT {default_val}")
+        except sqlite3.OperationalError:
+            pass
 
     conn.commit()
     conn.close()
@@ -112,24 +114,24 @@ def load_user_expenses(username):
     conn.close()
     return df
 
-def add_expense_db(username, date_str, year_num, month_str, item, category, orig_amt, currency, rate, amt_twd, is_favorite=0):
+def add_expense_db(username, date_str, year_num, month_str, item, category, orig_amt, currency, rate, amt_twd, is_favorite=0, note=""):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute('''
-        INSERT INTO expenses (username, date, year, month, item, category, original_amount, currency, rate_used, amount_twd, is_favorite)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (username, date_str, year_num, month_str, item, category, orig_amt, currency, rate, amt_twd, is_favorite))
+        INSERT INTO expenses (username, date, year, month, item, category, original_amount, currency, rate_used, amount_twd, is_favorite, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (username, date_str, year_num, month_str, item, category, orig_amt, currency, rate, amt_twd, is_favorite, note))
     conn.commit()
     conn.close()
 
-def update_expense_db(expense_id, date_str, year_num, month_str, item, category, orig_amt, currency, rate, amt_twd):
+def update_expense_db(expense_id, date_str, year_num, month_str, item, category, orig_amt, currency, rate, amt_twd, note=""):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute('''
         UPDATE expenses 
-        SET date=?, year=?, month=?, item=?, category=?, original_amount=?, currency=?, rate_used=?, amount_twd=?
+        SET date=?, year=?, month=?, item=?, category=?, original_amount=?, currency=?, rate_used=?, amount_twd=?, note=?
         WHERE id=?
-    ''', (date_str, year_num, month_str, item, category, orig_amt, currency, rate, amt_twd, expense_id))
+    ''', (date_str, year_num, month_str, item, category, orig_amt, currency, rate, amt_twd, note, expense_id))
     conn.commit()
     conn.close()
 
@@ -533,6 +535,13 @@ def edit_expense_dialog(rec, rec_id, prefix):
     edit_item = st.text_input("修改項目名稱", value=rec["item"], key=f"i_{unique_key}")
     edit_category = st.selectbox("修改分類", CATEGORIES, index=CATEGORIES.index(rec["category"]), key=f"cat_{unique_key}")
     
+    edit_note = st.text_input(
+        "修改備註", 
+        value=rec.get("note", "") if rec.get("note") else "", 
+        placeholder="請輸入備註 (選填)...", 
+        key=f"n_{unique_key}"
+    )
+
     edit_currency = st.selectbox(
         "修改幣別", 
         list(CURRENCY_MAP.keys()), 
@@ -588,7 +597,8 @@ def edit_expense_dialog(rec, rec_id, prefix):
                         orig_amt=formatted_orig,
                         currency=edit_currency,
                         rate=round(rate_val_input, 4),
-                        amt_twd=amount_twd_val
+                        amt_twd=amount_twd_val,
+                        note=edit_note.strip()
                     )
                 else:
                     st.session_state.guest_expenses[rec_id] = {
@@ -601,7 +611,8 @@ def edit_expense_dialog(rec, rec_id, prefix):
                         "currency": edit_currency,
                         "rate_used": round(rate_val_input, 4),
                         "amount_twd": amount_twd_val,
-                        "is_favorite": rec.get("is_favorite", 0)
+                        "is_favorite": rec.get("is_favorite", 0),
+                        "note": edit_note.strip()
                     }
                 st.session_state.show_popup_type = "updated"
                 st.rerun()
@@ -774,7 +785,8 @@ if st.session_state.logged_in and len(st.session_state.guest_expenses) > 0:
                 currency=rec["currency"],
                 rate=rec["rate_used"],
                 amt_twd=rec["amount_twd"],
-                is_favorite=rec.get("is_favorite", 0)
+                is_favorite=rec.get("is_favorite", 0),
+                note=rec.get("note", "")
             )
         st.session_state.guest_expenses = []
         st.toast("🎉 舊紀錄已完美匯入你的個人帳號中！", icon="✨")
@@ -957,13 +969,15 @@ with tab_input:
             is_fav = rec.get("is_favorite", 0)
             star_icon = "⭐" if is_fav == 1 else "☆"
             
-            left_info = f"🗓️ {rec['date']} | {rec['category']} | {rec['item']}"
+            note_str = f" | 📝 {rec['note']}" if rec.get('note') else ""
+            left_info = f"🗓️ {rec['date']} | {rec['category']} | {rec['item']}{note_str}"
+            
             if rec['currency'] == "NT 新台幣":
                 right_amount = f"NT {rec['amount_twd']:,}"
             else:
                 right_amount = f"{rec['currency']} {rec['original_amount']} (折算 NT {rec['amount_twd']:,}，匯率 {rec['rate_used']:.4f})"
             
-            list_col1, list_col2, list_col3, list_col4 = st.columns([3.5, 5.5, 1, 1])
+            list_col1, list_col2, list_col3, list_col4 = st.columns([4.5, 4.5, 1, 1])
             with list_col1:
                 st.markdown(f'<div class="item-left-align">{left_info}</div>', unsafe_allow_html=True)
             with list_col2:
@@ -1035,6 +1049,7 @@ with tab_month:
             
             for idx, rec in enumerate(m_expenses):
                 rec_id = rec.get("id", idx)
+                item_note = f" (📝 {rec['note']})" if rec.get("note") else ""
                 
                 c_btn, c_date, c_item, c_cat, c_orig, c_twd = st.columns([1, 2, 3, 2, 2.5, 2])
                 with c_btn:
@@ -1043,7 +1058,7 @@ with tab_month:
                 with c_date:
                     st.write(f"🗓️ {rec['date']}")
                 with c_item:
-                    st.write(f"**{rec['item']}**")
+                    st.write(f"**{rec['item']}**{item_note}")
                 with c_cat:
                     st.write(rec['category'])
                 with c_orig:
@@ -1110,6 +1125,7 @@ with tab_year:
             
             for idx, rec in enumerate(y_expenses):
                 rec_id = rec.get("id", idx)
+                item_note = f" (📝 {rec['note']})" if rec.get("note") else ""
                 
                 c_btn, c_date, c_item, c_cat, c_orig, c_twd = st.columns([1, 2, 3, 2, 2.5, 2])
                 with c_btn:
@@ -1118,7 +1134,7 @@ with tab_year:
                 with c_date:
                     st.write(f"🗓️ {rec['date']}")
                 with c_item:
-                    st.write(f"**{rec['item']}**")
+                    st.write(f"**{rec['item']}**{item_note}")
                 with c_cat:
                     st.write(rec['category'])
                 with c_orig:
