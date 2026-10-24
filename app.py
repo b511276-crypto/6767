@@ -428,6 +428,16 @@ if 'confirm_delete_account' not in st.session_state:
 if 'show_popup_type' not in st.session_state:
     st.session_state.show_popup_type = None
 
+# 預填狀態初始化
+if 'preset_item' not in st.session_state:
+    st.session_state.preset_item = ""
+if 'preset_cat' not in st.session_state:
+    st.session_state.preset_cat = ""
+if 'preset_amt' not in st.session_state:
+    st.session_state.preset_amt = ""
+if 'preset_curr' not in st.session_state:
+    st.session_state.preset_curr = "NT 新台幣"
+
 # 🌟 5. 可愛的提示視窗
 @st.dialog("🌸 系統訊息")
 def cute_status_dialog(msg_type):
@@ -790,18 +800,72 @@ else:
 # 13. 記帳與分析主介面
 tab_input, tab_month, tab_year = st.tabs(["✏️ 記帳", "📅 月度消費趨勢", "🎆 年度消費趨勢"])
 
-# --- 分頁 1：修復 0 延遲即時變動與儲存反應 ---
+# --- 分頁 1：無縫雙向通訊（兼具 0 延遲即時運算與 100% 寫入儲存）---
 with tab_input:
     reset_key = st.session_state.form_reset_key
 
-    # 1. Key 定義
-    k_fav = f"fav_{reset_key}"
-    k_item = f"item_{reset_key}"
-    k_cat = f"cat_{reset_key}"
-    k_curr = f"curr_{reset_key}"
-    k_amt = f"amt_{reset_key}"
+    # 捕捉前端發起的儲存請求 (使用 st.query_params)
+    if "item" in st.query_params or "amount" in st.query_params:
+        p_item = st.query_params.get("item", "")
+        p_cat = st.query_params.get("category", "")
+        p_curr = st.query_params.get("currency", "")
+        p_amt = st.query_params.get("amount", "")
+        
+        # 清除 URL query 避免重複提交
+        st.query_params.clear()
 
-    # 2. 準備常用選單 map
+        try:
+            input_amount_val = float(p_amt)
+        except ValueError:
+            input_amount_val = 0.0
+
+        if p_item and p_cat and input_amount_val > 0:
+            target_date_val = st.session_state.get(f"date_{reset_key}", datetime.now().date())
+            live_rate = fetch_rate_by_date(p_curr, target_date_val)
+            date_str = target_date_val.strftime("%Y-%m-%d")
+            year_num = target_date_val.year
+            month_str = target_date_val.strftime("%Y-%m")
+            
+            amount_twd_val = int(round(input_amount_val * live_rate))
+            formatted_orig = str(int(input_amount_val)) if input_amount_val.is_integer() else str(input_amount_val)
+            
+            if st.session_state.logged_in:
+                add_expense_db(
+                    username=st.session_state.username,
+                    date_str=date_str,
+                    year_num=year_num,
+                    month_str=month_str,
+                    item=p_item.strip(),
+                    category=p_cat,
+                    orig_amt=formatted_orig,
+                    currency=p_curr,
+                    rate=round(live_rate, 4),
+                    amt_twd=amount_twd_val
+                )
+            else:
+                new_rec = {
+                    "date": date_str,
+                    "year": year_num,
+                    "month": month_str,
+                    "item": p_item.strip(),
+                    "category": p_cat,
+                    "original_amount": formatted_orig,
+                    "currency": p_curr,
+                    "rate_used": round(live_rate, 4),
+                    "amount_twd": amount_twd_val,
+                    "is_favorite": 0
+                }
+                st.session_state.guest_expenses.append(new_rec)
+
+            st.session_state.preset_item = ""
+            st.session_state.preset_cat = ""
+            st.session_state.preset_amt = ""
+            st.session_state.preset_curr = "NT 新台幣"
+            st.session_state.form_reset_key += 1
+            st.session_state.show_popup_type = "saved"
+            st.rerun()
+
+    # 常用項目 map 建立
     fav_options = ["不選擇常用（手動輸入）"]
     fav_items_map = {}
     
@@ -813,26 +877,26 @@ with tab_input:
                 fav_options.append(lbl)
                 fav_items_map[lbl] = f_row
 
-    # 3. 常用選單 callback（選回手動輸入即刻清空）
+    # 選回手動輸入自動清空 callback
     def on_fav_change():
-        selected = st.session_state.get(k_fav)
+        selected = st.session_state.get(f"fav_select_{reset_key}")
         if selected and selected != "不選擇常用（手動輸入）" and selected in fav_items_map:
             f = fav_items_map[selected]
-            st.session_state[k_item] = str(f["item"])
-            st.session_state[k_cat] = f["category"] if f["category"] in CATEGORIES else None
-            st.session_state[k_amt] = str(f["original_amount"])
-            st.session_state[k_curr] = f["currency"] if f["currency"] in CURRENCY_MAP else "NT 新台幣"
+            st.session_state.preset_item = str(f["item"])
+            st.session_state.preset_cat = f["category"] if f["category"] in CATEGORIES else ""
+            st.session_state.preset_amt = str(f["original_amount"])
+            st.session_state.preset_curr = f["currency"] if f["currency"] in CURRENCY_MAP else "NT 新台幣"
         else:
-            # 清空所有輸入欄位
-            st.session_state[k_item] = ""
-            st.session_state[k_cat] = None
-            st.session_state[k_amt] = ""
-            st.session_state[k_curr] = "NT 新台幣"
+            # 切回手動輸入：清空預填內容
+            st.session_state.preset_item = ""
+            st.session_state.preset_cat = ""
+            st.session_state.preset_amt = ""
+            st.session_state.preset_curr = "NT 新台幣"
 
     def trigger_rerun_pop():
         st.session_state.show_popup_type = "switching"
 
-    # 第一行：日期與常用選單
+    # 第一行：選擇日期與常用選單
     top_col1, top_col2 = st.columns(2)
     with top_col1:
         input_date = st.date_input(
@@ -844,84 +908,126 @@ with tab_input:
             on_change=trigger_rerun_pop
         )
     with top_col2:
-        st.selectbox("常用選單", fav_options, key=k_fav, on_change=on_fav_change)
+        st.selectbox("常用選單", fav_options, key=f"fav_select_{reset_key}", on_change=on_fav_change)
 
-    # 第二行：消費項目與消費分類（消費分類無預設值 index=None）
-    f_col1, f_col2 = st.columns(2)
-    with f_col1:
-        input_item = st.text_input("消費項目", placeholder="例如：韓國炸雞 🍗", key=k_item)
-    with f_col2:
-        input_category = st.selectbox("消費分類", CATEGORIES, index=None, placeholder="請選擇分類...", key=k_cat)
+    # 準備填入前端 HTML 的預填變數
+    p_item = st.session_state.preset_item
+    p_cat = st.session_state.preset_cat
+    p_amt = st.session_state.preset_amt
+    p_curr = st.session_state.preset_curr
 
-    # 第三行：選擇幣別與花費金額 (加上 on_change，實時監聽數字變更)
-    amt_col1, amt_col2 = st.columns(2)
-    with amt_col1:
-        currency = st.selectbox("選擇幣別", list(CURRENCY_MAP.keys()), key=k_curr, on_change=trigger_rerun_pop)
-    with amt_col2:
-        # 即時輸入金額，按 enter 或游標離開立刻觸發即時計算
-        input_amount_str = st.text_input("花費金額", placeholder="請輸入金額...", key=k_amt)
+    # 分類 HTML (預設不選擇，顯示「請選擇分類...」)
+    if not p_cat:
+        cat_options_html = '<option value="" disabled selected>請選擇分類...</option>'
+    else:
+        cat_options_html = '<option value="" disabled>請選擇分類...</option>'
+        
+    for c in CATEGORIES:
+        sel_str = 'selected' if c == p_cat else ''
+        cat_options_html += f'<option value="{c}" {sel_str}>{c}</option>'
 
-    # 4. 即時折算邏輯 (隨意輸入數字、切換幣別即可即時更新)
-    current_live_rate = fetch_rate_by_date(currency, input_date)
-    try:
-        raw_amt_val = st.session_state.get(k_amt, input_amount_str)
-        input_amount = float(str(raw_amt_val).strip()) if raw_amt_val and str(raw_amt_val).strip() else 0.0
-    except ValueError:
-        input_amount = 0.0
+    # 幣別 HTML
+    curr_options_html = "".join([f'<option value="{c}" {"selected" if c == p_curr else ""}>{c}</option>' for c in CURRENCY_MAP.keys()])
 
-    calc_twd = int(round(input_amount * current_live_rate)) if input_amount > 0 else 0
-    
-    st.info(f"💡 當前即時牌告匯率：**1 {currency.split()[1]} ≈ {current_live_rate} TWD** | 折算預覽：**NT$ {calc_twd:,}**")
+    # JS 匯率字典
+    rates_js_obj = "{" + ", ".join([f'"{k}": {fetch_rate_by_date(k, input_date)}' for k in CURRENCY_MAP.keys()]) + "}"
 
-    # 5. 儲存按鈕處理 (100% 能點擊儲存，無反應問題解決)
-    if st.button("💖 儲存這筆紀錄", use_container_width=True, type="primary", key=f"submit_{reset_key}"):
-        curr_item_val = st.session_state.get(k_item, input_item)
-        curr_cat_val = st.session_state.get(k_cat, input_category)
+    # ⚡ 前端內嵌表單：鍵盤輸入 oninput 0 延遲實時運算
+    full_form_html = f"""
+    <div style="font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif; color: #5c4b51;">
+        <form onsubmit="doSave(event)" style="margin:0; padding:0;">
+            <div style="display: flex; gap: 16px; margin-bottom: 12px;">
+                <div style="flex: 1;">
+                    <label style="font-weight: 700; font-size: 0.9rem; margin-bottom: 6px; display: block;">消費項目</label>
+                    <input type="text" id="form_item" value="{p_item}" placeholder="例如：韓國炸雞 🍗"
+                           style="width: 100%; padding: 10px 14px; font-size: 0.95rem; border-radius: 12px; border: 1px solid #dcdfe6; background-color: #ffffff; color: #5c4b51; outline: none; box-sizing: border-box;">
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-weight: 700; font-size: 0.9rem; margin-bottom: 6px; display: block;">消費分類</label>
+                    <select id="form_cat" style="width: 100%; padding: 10px 14px; font-size: 0.95rem; border-radius: 12px; border: 1px solid #dcdfe6; background-color: #ffffff; color: #5c4b51; outline: none; box-sizing: border-box;">
+                        {cat_options_html}
+                    </select>
+                </div>
+            </div>
 
-        if not curr_item_val or not curr_item_val.strip():
-            st.warning("⚠️ 請填寫消費項目名稱喔！")
-        elif curr_cat_val is None:
-            st.warning("⚠️ 請選擇消費分類喔！")
-        elif input_amount <= 0:
-            st.warning("⚠️ 請在上方的「花費金額」欄位輸入有效金額喔！")
-        else:
-            date_str = input_date.strftime("%Y-%m-%d")
-            year_num = input_date.year
-            month_str = input_date.strftime("%Y-%m")
-            amount_twd_val = int(round(input_amount * current_live_rate))
-            formatted_orig = str(int(input_amount)) if input_amount.is_integer() else str(input_amount)
+            <div style="display: flex; gap: 16px; margin-bottom: 12px;">
+                <div style="flex: 1;">
+                    <label style="font-weight: 700; font-size: 0.9rem; margin-bottom: 6px; display: block;">選擇幣別</label>
+                    <select id="form_curr" onchange="calcRealtime()" style="width: 100%; padding: 10px 14px; font-size: 0.95rem; border-radius: 12px; border: 1px solid #dcdfe6; background-color: #ffffff; color: #5c4b51; outline: none; box-sizing: border-box;">
+                        {curr_options_html}
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-weight: 700; font-size: 0.9rem; margin-bottom: 6px; display: block;">花費金額</label>
+                    <input type="text" id="form_amt" value="{p_amt}" placeholder="請輸入金額..." oninput="calcRealtime()"
+                           style="width: 100%; padding: 10px 14px; font-size: 0.95rem; border-radius: 12px; border: 1px solid #dcdfe6; background-color: #ffffff; color: #5c4b51; outline: none; box-sizing: border-box;">
+                </div>
+            </div>
+
+            <div style="margin-top: 10px; background-color: #e8f4f8; padding: 12px 16px; border-radius: 12px; color: #2c3e50; font-size: 0.95rem; font-weight: 500;">
+                💡 當前即時牌告匯率：<b id="rate_info_text">1 TWD ≈ 1.0 TWD</b> | 折算預覽：<b id="live_calc_preview" style="color: #0056b3; font-size: 1.1rem;">NT$ 0</b>
+            </div>
+
+            <button type="submit" 
+                    style="width: 100%; margin-top: 16px; background-color: #e05263; color: white; border: none; padding: 12px 18px; border-radius: 14px; font-weight: 700; font-size: 1.05rem; cursor: pointer; box-shadow: 0 4px 12px rgba(224, 82, 99, 0.25);">
+                💖 儲存這筆紀錄
+            </button>
+        </form>
+    </div>
+
+    <script>
+        var ratesMap = {rates_js_obj};
+
+        // 0 延遲即時計算折算金額
+        function calcRealtime() {{
+            var currSelect = document.getElementById('form_curr').value;
+            var rate = ratesMap[currSelect] || 1.0;
             
-            if st.session_state.logged_in:
-                add_expense_db(
-                    username=st.session_state.username,
-                    date_str=date_str,
-                    year_num=year_num,
-                    month_str=month_str,
-                    item=curr_item_val.strip(),
-                    category=curr_cat_val,
-                    orig_amt=formatted_orig,
-                    currency=currency,
-                    rate=round(current_live_rate, 4),
-                    amt_twd=amount_twd_val
-                )
-            else:
-                new_rec = {
-                    "date": date_str,
-                    "year": year_num,
-                    "month": month_str,
-                    "item": curr_item_val.strip(),
-                    "category": curr_cat_val,
-                    "original_amount": formatted_orig,
-                    "currency": currency,
-                    "rate_used": round(current_live_rate, 4),
-                    "amount_twd": amount_twd_val,
-                    "is_favorite": 0
-                }
-                st.session_state.guest_expenses.append(new_rec)
+            var currCode = currSelect.split(' ')[1] || 'TWD';
+            document.getElementById('rate_info_text').innerText = '1 ' + currCode + ' ≈ ' + rate + ' TWD';
 
-            st.session_state.form_reset_key += 1
-            st.session_state.show_popup_type = "saved"
-            st.rerun()
+            var val = document.getElementById('form_amt').value;
+            var cleanVal = val.replace(/[^0-9.]/g, '');
+            var num = parseFloat(cleanVal);
+            var result = 0;
+            if (!isNaN(num) && num > 0) {{
+                result = Math.round(num * rate);
+            }}
+            document.getElementById('live_calc_preview').innerText = 'NT$ ' + result.toLocaleString();
+        }}
+
+        // 儲存事件傳導
+        function doSave(e) {{
+            e.preventDefault();
+            var item = document.getElementById('form_item').value.trim();
+            var cat = document.getElementById('form_cat').value;
+            var curr = document.getElementById('form_curr').value;
+            var amt = document.getElementById('form_amt').value.trim();
+
+            if (!item) {{
+                alert('⚠️ 請填寫消費項目名稱喔！');
+                return;
+            }}
+            if (!cat) {{
+                alert('⚠️ 請選擇消費分類喔！');
+                return;
+            }}
+            var numAmt = parseFloat(amt);
+            if (isNaN(numAmt) || numAmt <= 0) {{
+                alert('⚠️ 請在上方的「花費金額」欄位輸入有效金額喔！');
+                return;
+            }}
+
+            var targetUrl = window.parent.location.pathname + '?item=' + encodeURIComponent(item) + '&category=' + encodeURIComponent(cat) + '&currency=' + encodeURIComponent(curr) + '&amount=' + encodeURIComponent(amt);
+            window.parent.location.href = targetUrl;
+        }}
+
+        // 初始化預覽計算
+        calcRealtime();
+    </script>
+    """
+
+    st.components.v1.html(full_form_html, height=285)
 
     st.markdown("---")
     st.subheader("📜 最近的記帳明細")
