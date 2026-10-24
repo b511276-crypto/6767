@@ -277,78 +277,74 @@ st.markdown("""
     
     .stMarkdown a, .cute-header a { display: none !important; }
 
-    /* 🌸 1. 徹底隱藏側邊欄原生 << 圖示，替換為精美「◀ 收起 🌸」膠囊按鈕 */
-    [data-testid="stSidebarCollapseButton"] svg,
-    button[aria-label*="sidebar" i] svg,
-    button[aria-label*="Sidebar" i] svg {
-        display: none !important;
-        width: 0 !important;
-        height: 0 !important;
+    /* 🌸 1. 修正圖一：精準單一側邊欄收起按鈕 (完全消除外框與 << 重疊) */
+    div[data-testid="stSidebarCollapseButton"] {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
     }
-    [data-testid="stSidebarCollapseButton"],
-    button[aria-label*="sidebar" i],
-    button[aria-label*="Sidebar" i] {
-        background: #ffffff !important;
+    button[data-testid="stSidebarCollapseButton"] {
+        background-color: #ffffff !important;
         border: 2px solid #ffd1dc !important;
         border-radius: 20px !important;
         padding: 5px 14px !important;
-        box-shadow: 0 4px 12px rgba(255, 183, 197, 0.35) !important;
+        box-shadow: 0 4px 10px rgba(255, 183, 197, 0.35) !important;
+        transition: all 0.25s ease-in-out !important;
         width: auto !important;
         height: auto !important;
-        min-height: 34px !important;
-        transition: all 0.25s ease-in-out !important;
     }
-    [data-testid="stSidebarCollapseButton"]::after,
-    button[aria-label*="sidebar" i]::after,
-    button[aria-label*="Sidebar" i]::after {
+    button[data-testid="stSidebarCollapseButton"] svg {
+        display: none !important;
+    }
+    button[data-testid="stSidebarCollapseButton"]::after {
         content: "◀ 收起 🌸" !important;
         font-size: 0.88rem !important;
         font-weight: 800 !important;
         color: #ff6b81 !important;
-        font-family: 'M PLUS Rounded 1c', sans-serif !important;
         white-space: nowrap !important;
     }
-    [data-testid="stSidebarCollapseButton"]:hover,
-    button[aria-label*="sidebar" i]:hover {
+    button[data-testid="stSidebarCollapseButton"]:hover {
         background-color: #fff0f3 !important;
         border-color: #ffb7c5 !important;
         transform: scale(1.05) !important;
     }
 
-    /* 🌸 2. 圓角膠囊 Tab 頁籤（隱藏直條底線） */
-    .stTabs [data-baseweb="tab-list"] {
+    /* 🌸 2. 修正圖三：完全圓角 Tab 頁籤 & 隱藏紅色下劃線 */
+    div[data-testid="stTabs"] [data-baseweb="tab-list"] {
         gap: 12px !important;
-        background-color: #fff0f3 !important;
-        padding: 10px 14px !important;
-        border-radius: 25px !important;
-        border: 2px dashed #ffd1dc !important;
-        margin-bottom: 1.5rem !important;
+        background-color: transparent !important;
+        border-bottom: none !important;
+        padding-bottom: 6px !important;
     }
-    .stTabs [data-baseweb="tab"] {
-        height: 44px !important;
-        border-radius: 18px !important; /* 🌟 圓角 */
+    div[data-testid="stTabs"] button[role="tab"] {
+        border-radius: 22px !important; /* 🌟 真正的圓角卡片 */
         background-color: #ffffff !important;
+        border: 2px solid #ffd1dc !important;
+        padding: 8px 22px !important;
         color: #7d5a60 !important;
         font-weight: 700 !important;
-        border: 2px solid #ffe4e1 !important;
-        padding: 0px 22px !important;
+        font-size: 0.95rem !important;
+        margin-right: 8px !important;
         transition: all 0.2s ease-in-out !important;
-        box-shadow: 0 2px 6px rgba(255, 209, 220, 0.2) !important;
+        box-shadow: 0 3px 8px rgba(255, 209, 220, 0.2) !important;
     }
-    .stTabs [aria-selected="true"] {
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
         background: linear-gradient(135deg, #ffb7c5, #ffdac1) !important;
         color: #ffffff !important;
-        font-weight: 800 !important;
         border: 2px solid #ffb7c5 !important;
+        border-radius: 22px !important;
         box-shadow: 0 4px 12px rgba(255, 183, 197, 0.45) !important;
     }
-    /* 移除原生底線 */
-    .stTabs [data-baseweb="tab-highlight"],
-    .stTabs [data-baseweb="tab-border-none"] {
+    /* 徹底關閉 Streamlit 底部的紅色線 */
+    div[data-testid="stTabs"] [data-baseweb="tab-highlight"],
+    div[data-baseweb="tab-highlight"] {
         display: none !important;
+        background-color: transparent !important;
+        height: 0 !important;
     }
 
-    /* 🌸 3. 中央大版面裝飾卡片（白色柔和卡片背景） */
+    /* 🌸 3. 主大版面白色卡片包裹（圖二拿掉標籤後乾淨的卡片） */
     .macaron-card {
         background-color: #ffffff;
         border: 2px solid #ffe4e1;
@@ -356,21 +352,35 @@ st.markdown("""
         padding: 1.8rem;
         box-shadow: 0 8px 25px rgba(255, 209, 220, 0.25);
         margin-bottom: 2rem;
-        position: relative;
     }
-    .macaron-card::before {
-        content: "🎀 每日記帳卡";
+
+    /* 🐰 4. 圖四動態貼圖區配置 */
+    .banner-wrapper {
+        position: relative;
+        width: 100%;
+        margin-top: 15px;
+    }
+    .bunny-on-banner {
         position: absolute;
-        top: -15px;
-        left: 24px;
-        font-size: 0.85rem;
-        font-weight: 800;
-        color: #ff6b81;
-        background: #fff0f3;
-        padding: 2px 12px;
-        border-radius: 12px;
-        border: 1px solid #ffd1dc;
-        box-shadow: 0 2px 6px rgba(255, 183, 197, 0.2);
+        top: -38px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 70px;
+        z-index: 10;
+        filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+    }
+    .top-right-float-gif {
+        position: fixed;
+        top: 60px;
+        right: 30px;
+        width: 65px;
+        z-index: 999;
+        pointer-events: none;
+        animation: float 2.5s ease-in-out infinite alternate;
+    }
+    @keyframes float {
+        0% { transform: translateY(0px); }
+        100% { transform: translateY(-10px); }
     }
 
     /* 🎨 輸入欄位裝飾美化 */
@@ -399,7 +409,6 @@ st.markdown("""
         margin-bottom: 2rem;
         width: 100%;
     }
-    
     .cute-header h1 { 
         font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif;
         font-weight: 800;
@@ -412,7 +421,6 @@ st.markdown("""
         line-height: 1.3;
         text-align: center;
     }
-    
     .cute-header p { 
         font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif;
         color: #7d5a60; 
@@ -427,13 +435,11 @@ st.markdown("""
         text-align: center;
         padding: 1.5rem 1rem;
     }
-    
     .popup-icon {
         font-size: 3.2rem;
         margin-bottom: 0.8rem;
         animation: pulse 1.2s infinite alternate;
     }
-
     @keyframes pulse {
         0% { transform: scale(1); }
         100% { transform: scale(1.15); }
@@ -448,7 +454,6 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(255, 209, 220, 0.25);
         margin-bottom: 1.2rem;
     }
-    
     .avatar-circle-img {
         width: 75px;
         height: 75px;
@@ -459,7 +464,6 @@ st.markdown("""
         margin: 0 auto 0.6rem auto;
         display: block;
     }
-
     .avatar-circle-char {
         width: 75px;
         height: 75px;
@@ -473,7 +477,6 @@ st.markdown("""
         box-shadow: 0 4px 10px rgba(255, 183, 197, 0.4);
         margin: 0 auto 0.6rem auto;
     }
-
     .sidebar-user-card h3 {
         color: #ff6b81;
         font-size: 1.3rem;
@@ -523,6 +526,9 @@ st.markdown("""
 
     #MainMenu {visibility: hidden;} footer {visibility: hidden;}
 </style>
+
+<!-- 🌟 圖四動態貼圖：右上角飄浮閃爍星光 GIF -->
+<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3p0eGN1YWF1eGZ4Z3lhOTlsb3BrbmF2OHUybml3YmNvZHR2MGRqZCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/vbfI2pB52K9bV6D21H/giphy.gif" class="top-right-float-gif">
 """, unsafe_allow_html=True)
 
 # 4. Session State 初始化
@@ -784,7 +790,13 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
 
 # 9. 側邊欄：登入、註冊與上傳頭像
 with st.sidebar:
-    st.title("🌸 帳號管理")
+    # 🌟 圖四動態貼圖：側邊欄標題動態小貼圖
+    st.markdown("""
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+        <h2 style="margin: 0; color: #ff6b81; font-weight: 800;">🌸 帳號管理</h2>
+        <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGJyMWs1Ym1rZmd4MmQzeGdmbnpnaG83OHF3ZjU2eGJkZmZwcHB5ciZlcD12MV9pbnRlcm5hbF9zdGlja2Vyc19zZWFyY2gmY3Q9cw/LpA2G1m88lXQn27Mv5/giphy.gif" style="width: 45px; height: 45px;">
+    </div>
+    """, unsafe_allow_html=True)
     
     if not st.session_state.logged_in:
         auth_mode = st.radio("選擇操作", ["🔑 登入", "✨ 註冊新帳號"])
@@ -874,11 +886,22 @@ with st.sidebar:
                     st.toast("🗑️ 帳號及相關資料已成功註銷！", icon="✨")
                     st.rerun()
 
-# 10. 主頁面 Header
+    # 🌟 圖四動態貼圖：側邊欄底部可愛搖擺兔 GIF
+    st.markdown("""
+    <div style="text-align: center; margin-top: 2rem;">
+        <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMHgyOWR1Y3pxMnRsaDFzZHlyNGc5eDJ2bndqdWhqODhkOWE0cnRhMyZlcD12MV9pbnRlcm5hbF9zdGlja2Vyc19zZWFyY2gmY3Q9cw/3oKIPnAiaMCws8nOsE/giphy.gif" style="width: 100px; opacity: 0.9;">
+        <p style="font-size: 0.8rem; color: #a38c93; margin-top: 5px; font-weight: 700;">陪你一起省錢記帳 🐰✨</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# 10. 主頁面 Header（🌟 圖四動態貼圖：橫幅上方趴趴兔）
 st.markdown("""
-<div class="cute-header">
-    <h1>🌸生活記帳本🌸</h1>
-    <p>輕鬆紀錄每筆生活消費✨</p>
+<div class="banner-wrapper">
+    <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExN2I3YmtwOWRzZ24yeWhndW1kMDRiMWV2ZW02bzFvZzB0aTRudTFiaCZlcD12MV9zdGlja2Vyc19zZWFyY2gmY3Q9cw/K1tgb1IUeBOARTX636/giphy.gif" class="bunny-on-banner">
+    <div class="cute-header">
+        <h1>🌸生活記帳本🌸</h1>
+        <p>輕鬆紀錄每筆生活消費✨</p>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -971,7 +994,7 @@ with tab_input:
     def trigger_rerun_pop():
         st.session_state.show_popup_type = "switching"
 
-    # 🌸 3. 主大版面裝飾卡片（將輸入表單包裹於裝飾卡片內）
+    # 主大版面白色卡片包裹（已拿掉圖二標籤，乾淨白底圓角卡片）
     st.markdown('<div class="macaron-card">', unsafe_allow_html=True)
 
     # 第一行：日期與常用選單
@@ -1072,7 +1095,7 @@ with tab_input:
             st.session_state.show_popup_type = "saved"
             st.rerun()
 
-    st.markdown('</div>', unsafe_allow_html=True) # 結束卡片包裹
+    st.markdown('</div>', unsafe_allow_html=True)
 
     st.subheader("📜 最近的記帳明細")
     if not df.empty:
