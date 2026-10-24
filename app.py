@@ -276,6 +276,63 @@ st.markdown("""
     }
     
     .stMarkdown a, .cute-header a { display: none !important; }
+
+    /* 🌸 1. 展開時：按鍵狀按鈕 */
+    div[data-testid="stSidebarCollapseButton"] button {
+        background-color: #ffffff !important;
+        border: 2px solid #ffd1dc !important;
+        border-radius: 20px !important;
+        padding: 5px 14px !important;
+        box-shadow: 0 4px 10px rgba(255, 183, 197, 0.35) !important;
+        transition: all 0.25s ease-in-out !important;
+        width: auto !important;
+        height: auto !important;
+    }
+    div[data-testid="stSidebarCollapseButton"] button svg {
+        display: none !important;
+    }
+    div[data-testid="stSidebarCollapseButton"] button::after {
+        content: "◀ 收起 🌸" !important;
+        font-size: 0.88rem !important;
+        font-weight: 800 !important;
+        color: #ff6b81 !important;
+        white-space: nowrap !important;
+    }
+    div[data-testid="stSidebarCollapseButton"] button:hover {
+        background-color: #fff0f3 !important;
+        border-color: #ffb7c5 !important;
+        transform: scale(1.05) !important;
+    }
+
+    /* 🌸 2. 收起時：貼左側牆邊的標籤狀 (Tag/Tab) */
+    div[data-testid="stSidebarCollapsedControl"] {
+        top: 15px !important;
+        left: 0px !important;
+    }
+    div[data-testid="stSidebarCollapsedControl"] button {
+        background: linear-gradient(135deg, #ffb7c5, #ffdac1) !important;
+        border: none !important;
+        border-radius: 0 18px 18px 0 !important; /* 單邊圓角標籤造型 */
+        padding: 8px 16px 8px 12px !important;
+        box-shadow: 3px 3px 12px rgba(255, 183, 197, 0.45) !important;
+        transition: all 0.25s ease-in-out !important;
+        width: auto !important;
+        height: auto !important;
+    }
+    div[data-testid="stSidebarCollapsedControl"] button svg {
+        display: none !important;
+    }
+    div[data-testid="stSidebarCollapsedControl"] button::after {
+        content: "🌸 帳號選單 ▶" !important;
+        font-size: 0.9rem !important;
+        font-weight: 800 !important;
+        color: #ffffff !important;
+        white-space: nowrap !important;
+    }
+    div[data-testid="stSidebarCollapsedControl"] button:hover {
+        padding-left: 18px !important;
+        box-shadow: 5px 4px 15px rgba(255, 183, 197, 0.65) !important;
+    }
     
     .cute-header {
         background: linear-gradient(135deg, #ffb7c5, #ffe4e1);
@@ -626,7 +683,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
             st.toast("🗑️ 已成功刪除該筆資料！", icon="✨")
             st.rerun()
 
-# 8. 通用圖表繪製函式（🌟 上邊距設為 t=80，避免 12 點鐘方向標籤被卡邊裁切）
+# 8. 通用圖表繪製函式（上邊距設為 t=80，避免 12 點鐘標籤被邊框截斷）
 def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=False):
     chart_df = df_data.copy()
     
@@ -662,7 +719,7 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
 
     fig.update_layout(
         title="",
-        margin=dict(t=80, b=30, l=30, r=30), # 🌟 t=80 加大頂部邊距，解決標籤被遮擋問題
+        margin=dict(t=80, b=30, l=30, r=30),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         font=dict(family="M PLUS Rounded 1c, Noto Sans TC, sans-serif", size=14, color="#5c4b51")
