@@ -812,6 +812,7 @@ with tab_input:
     k_cat = f"cat_{reset_key}"
     k_curr = f"curr_{reset_key}"
     k_amt = f"amt_{reset_key}"
+    k_note = f"note_{reset_key}"
     k_date = f"date_{reset_key}"
 
     # State 初始化
@@ -823,6 +824,8 @@ with tab_input:
         st.session_state[k_amt] = ""
     if k_curr not in st.session_state:
         st.session_state[k_curr] = "NT 新台幣"
+    if k_note not in st.session_state:
+        st.session_state[k_note] = ""
 
     # 常用項目選項 map
     fav_options = ["不選擇常用（手動輸入）"]
@@ -844,11 +847,13 @@ with tab_input:
             st.session_state[k_cat] = f["category"] if f["category"] in CATEGORIES else None
             st.session_state[k_amt] = str(f["original_amount"])
             st.session_state[k_curr] = f["currency"] if f["currency"] in CURRENCY_MAP else "NT 新台幣"
+            st.session_state[k_note] = str(f.get("note", "")) if (pd.notna(f.get("note")) and f.get("note")) else ""
         else:
             st.session_state[k_item] = ""
             st.session_state[k_cat] = None
             st.session_state[k_amt] = ""
             st.session_state[k_curr] = "NT 新台幣"
+            st.session_state[k_note] = ""
 
     def trigger_rerun_pop():
         st.session_state.show_popup_type = "switching"
@@ -881,11 +886,15 @@ with tab_input:
     with amt_col2:
         st.text_input("花費金額", placeholder="請輸入金額...", key=k_amt)
 
+    # 第四行：備註欄位
+    st.text_input("備註 (選填)", placeholder="例如：朋友聚餐分帳...", key=k_note)
+
     # 讀取即時輸入狀態
     curr_item = st.session_state.get(k_item, "")
     curr_cat = st.session_state.get(k_cat, None)
     curr_curr = st.session_state.get(k_curr, "NT 新台幣")
     curr_amt_str = st.session_state.get(k_amt, "")
+    curr_note = st.session_state.get(k_note, "")
 
     # 計算牌告匯率與折算預覽
     current_live_rate = fetch_rate_by_date(curr_curr, input_date)
@@ -924,7 +933,8 @@ with tab_input:
                     orig_amt=formatted_orig,
                     currency=curr_curr,
                     rate=round(current_live_rate, 4),
-                    amt_twd=amount_twd_val
+                    amt_twd=amount_twd_val,
+                    note=curr_note.strip()
                 )
             else:
                 new_rec = {
@@ -937,7 +947,8 @@ with tab_input:
                     "currency": curr_curr,
                     "rate_used": round(current_live_rate, 4),
                     "amount_twd": amount_twd_val,
-                    "is_favorite": 0
+                    "is_favorite": 0,
+                    "note": curr_note.strip()
                 }
                 st.session_state.guest_expenses.append(new_rec)
 
