@@ -626,7 +626,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
             st.toast("🗑️ 已成功刪除該筆資料！", icon="✨")
             st.rerun()
 
-# 8. 通用圖表繪製函式（🌟 1. 加大頂部邊距 t=70 徹底解決文字被切割遮擋問題）
+# 8. 通用圖表繪製函式（圖表頂部邊距留白 t=70，確保文字完整）
 def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=False):
     chart_df = df_data.copy()
     
@@ -649,7 +649,7 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
         fig.update_traces(
             line=dict(width=3), 
             marker=dict(size=10),
-            texttemplate='🌸 折算後為 NT$ %{y:,.0f}',
+            texttemplate='NT$ %{y:,.0f}',
             textposition='top center'
         )
         fig.update_layout(xaxis_title="", yaxis_title="金額 (NT$)")
@@ -662,7 +662,7 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
 
     fig.update_layout(
         title="",
-        margin=dict(t=70, b=30, l=30, r=30), # 🌟 特效留白邊距，確保 12 點鐘方向標籤完整顯現不卡邊
+        margin=dict(t=70, b=30, l=30, r=30),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         font=dict(family="M PLUS Rounded 1c, Noto Sans TC, sans-serif", size=14, color="#5c4b51")
@@ -983,7 +983,7 @@ with tab_input:
             note_str = f" | 📝 {rec['note']}" if rec.get('note') else ""
             left_info = f"🗓️ {rec['date']} | {rec['category']} | {rec['item']}{note_str}"
             
-            # 🌟 2. 加上可愛圖案「🌸 折算後為 NT$」
+            # 🌟 保留此處「🌸 折算後為 NT$」
             if rec['currency'] == "NT 新台幣":
                 right_amount = f"🌸 折算後為 NT$ {rec['amount_twd']:,}"
             else:
@@ -1034,7 +1034,8 @@ with tab_month:
         m_df = df[df['month'] == selected_month]
         month_total = m_df['amount_twd'].sum() if not m_df.empty else 0
         
-        st.markdown(f'<div class="stat-card"><div class="stat-label">🌸 {selected_month} 當月累積總消費 (已折算台幣)</div><div class="stat-value">🌸 折算後為 NT$ {month_total:,}</div></div>', unsafe_allow_html=True)
+        # 🌟 還原月度累積總消費卡片格式
+        st.markdown(f'<div class="stat-card"><div class="stat-label">🌸 {selected_month} 當月累積總消費 (已折算台幣)</div><div class="stat-value">NT$ {month_total:,}</div></div>', unsafe_allow_html=True)
         
         if not m_df.empty:
             cat_m = m_df.groupby('category')['amount_twd'].sum().reset_index()
@@ -1063,8 +1064,8 @@ with tab_month:
                 rec_id = rec.get("id", idx)
                 item_note = f" (📝 {rec['note']})" if rec.get("note") else ""
                 
-                # 🌟 調整寬度比例，使「🌸 折算後為 NT$」完美呈現不折行
-                c_btn, c_date, c_item, c_cat, c_orig, c_twd = st.columns([0.8, 1.8, 2.5, 2, 2, 3.2])
+                # 🌟 還原月度列表格式
+                c_btn, c_date, c_item, c_cat, c_orig, c_twd = st.columns([1, 2, 3, 2, 2.5, 2])
                 with c_btn:
                     if st.button("✏️", key=f"btn_m_edit_{prefix_m}_{rec_id}_{idx}"):
                         edit_expense_dialog(rec, rec_id, prefix_m)
@@ -1077,7 +1078,7 @@ with tab_month:
                 with c_orig:
                     st.write(f"{rec['currency']} {rec['original_amount']}")
                 with c_twd:
-                    st.write(f"**🌸 折算後為 NT$ {rec['amount_twd']:,}**")
+                    st.write(f"**NT$ {rec['amount_twd']:,}**")
                 st.markdown("<hr style='margin: 0.2rem 0; border: none; border-top: 1px dashed #ffd1dc;'>", unsafe_allow_html=True)
         else:
             st.info(f"這個月 ({selected_month}) 還沒有任何記帳紀錄喔！")
@@ -1107,7 +1108,8 @@ with tab_year:
         y_df = df[df['year'] == selected_year]
         year_total = y_df['amount_twd'].sum() if not y_df.empty else 0
         
-        st.markdown(f'<div class="stat-card" style="border-color: #a8e6cf;"><div class="stat-label" style="color: #4e8d7c;">🌟 {selected_year} 全年累積總消費 (已折算台幣)</div><div class="stat-value" style="color: #42b883;">🌸 折算後為 NT$ {year_total:,}</div></div>', unsafe_allow_html=True)
+        # 🌟 還原年度累積總消費卡片格式
+        st.markdown(f'<div class="stat-card" style="border-color: #a8e6cf;"><div class="stat-label" style="color: #4e8d7c;">🌟 {selected_year} 全年累積總消費 (已折算台幣)</div><div class="stat-value" style="color: #42b883;">NT$ {year_total:,}</div></div>', unsafe_allow_html=True)
         
         if not y_df.empty:
             if y_view_mode == "🗓️ 各月份消費情況":
@@ -1140,8 +1142,8 @@ with tab_year:
                 rec_id = rec.get("id", idx)
                 item_note = f" (📝 {rec['note']})" if rec.get("note") else ""
                 
-                # 🌟 調整寬度比例，使「🌸 折算後為 NT$」完美呈現不折行
-                c_btn, c_date, c_item, c_cat, c_orig, c_twd = st.columns([0.8, 1.8, 2.5, 2, 2, 3.2])
+                # 🌟 還原年度列表格式
+                c_btn, c_date, c_item, c_cat, c_orig, c_twd = st.columns([1, 2, 3, 2, 2.5, 2])
                 with c_btn:
                     if st.button("✏️", key=f"btn_y_edit_{prefix_y}_{rec_id}_{idx}"):
                         edit_expense_dialog(rec, rec_id, prefix_y)
@@ -1154,7 +1156,7 @@ with tab_year:
                 with c_orig:
                     st.write(f"{rec['currency']} {rec['original_amount']}")
                 with c_twd:
-                    st.write(f"**🌸 折算後為 NT$ {rec['amount_twd']:,}**")
+                    st.write(f"**NT$ {rec['amount_twd']:,}**")
                 st.markdown("<hr style='margin: 0.2rem 0; border: none; border-top: 1px dashed #ffd1dc;'>", unsafe_allow_html=True)
         else:
             st.info(f"年份 ({selected_year}) 還沒有任何記帳紀錄喔！")
