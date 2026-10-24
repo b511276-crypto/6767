@@ -626,7 +626,7 @@ def edit_expense_dialog(rec, rec_id, prefix):
             st.toast("🗑️ 已成功刪除該筆資料！", icon="✨")
             st.rerun()
 
-# 8. 通用圖表繪製函式（圖表頂部邊距留白 t=70，確保文字完整）
+# 8. 通用圖表繪製函式（🌟 上邊距設為 t=80，避免 12 點鐘方向標籤被卡邊裁切）
 def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=False):
     chart_df = df_data.copy()
     
@@ -662,7 +662,7 @@ def render_custom_chart(df_data, x_col, y_col, chart_type, key_name, is_month_x=
 
     fig.update_layout(
         title="",
-        margin=dict(t=70, b=30, l=30, r=30),
+        margin=dict(t=80, b=30, l=30, r=30), # 🌟 t=80 加大頂部邊距，解決標籤被遮擋問題
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         font=dict(family="M PLUS Rounded 1c, Noto Sans TC, sans-serif", size=14, color="#5c4b51")
@@ -983,7 +983,6 @@ with tab_input:
             note_str = f" | 📝 {rec['note']}" if rec.get('note') else ""
             left_info = f"🗓️ {rec['date']} | {rec['category']} | {rec['item']}{note_str}"
             
-            # 🌟 保留此處「🌸 折算後為 NT$」
             if rec['currency'] == "NT 新台幣":
                 right_amount = f"🌸 折算後為 NT$ {rec['amount_twd']:,}"
             else:
@@ -1034,7 +1033,6 @@ with tab_month:
         m_df = df[df['month'] == selected_month]
         month_total = m_df['amount_twd'].sum() if not m_df.empty else 0
         
-        # 🌟 還原月度累積總消費卡片格式
         st.markdown(f'<div class="stat-card"><div class="stat-label">🌸 {selected_month} 當月累積總消費 (已折算台幣)</div><div class="stat-value">NT$ {month_total:,}</div></div>', unsafe_allow_html=True)
         
         if not m_df.empty:
@@ -1064,7 +1062,6 @@ with tab_month:
                 rec_id = rec.get("id", idx)
                 item_note = f" (📝 {rec['note']})" if rec.get("note") else ""
                 
-                # 🌟 還原月度列表格式
                 c_btn, c_date, c_item, c_cat, c_orig, c_twd = st.columns([1, 2, 3, 2, 2.5, 2])
                 with c_btn:
                     if st.button("✏️", key=f"btn_m_edit_{prefix_m}_{rec_id}_{idx}"):
@@ -1108,7 +1105,6 @@ with tab_year:
         y_df = df[df['year'] == selected_year]
         year_total = y_df['amount_twd'].sum() if not y_df.empty else 0
         
-        # 🌟 還原年度累積總消費卡片格式
         st.markdown(f'<div class="stat-card" style="border-color: #a8e6cf;"><div class="stat-label" style="color: #4e8d7c;">🌟 {selected_year} 全年累積總消費 (已折算台幣)</div><div class="stat-value" style="color: #42b883;">NT$ {year_total:,}</div></div>', unsafe_allow_html=True)
         
         if not y_df.empty:
@@ -1142,7 +1138,6 @@ with tab_year:
                 rec_id = rec.get("id", idx)
                 item_note = f" (📝 {rec['note']})" if rec.get("note") else ""
                 
-                # 🌟 還原年度列表格式
                 c_btn, c_date, c_item, c_cat, c_orig, c_twd = st.columns([1, 2, 3, 2, 2.5, 2])
                 with c_btn:
                     if st.button("✏️", key=f"btn_y_edit_{prefix_y}_{rec_id}_{idx}"):
