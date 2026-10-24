@@ -277,8 +277,9 @@ st.markdown("""
     
     .stMarkdown a, .cute-header a { display: none !important; }
 
-    /* 🌸 1. 展開時：按鍵狀按鈕 */
-    div[data-testid="stSidebarCollapseButton"] button {
+    /* 🌸 1. 側邊欄展開時：頂部立體粉紅按鍵狀 */
+    [data-testid="stSidebarCollapseButton"] button,
+    button[aria-label="Close sidebar"] {
         background-color: #ffffff !important;
         border: 2px solid #ffd1dc !important;
         border-radius: 20px !important;
@@ -287,51 +288,82 @@ st.markdown("""
         transition: all 0.25s ease-in-out !important;
         width: auto !important;
         height: auto !important;
+        font-size: 0 !important;
     }
-    div[data-testid="stSidebarCollapseButton"] button svg {
+    [data-testid="stSidebarCollapseButton"] button *,
+    button[aria-label="Close sidebar"] * {
         display: none !important;
     }
-    div[data-testid="stSidebarCollapseButton"] button::after {
+    [data-testid="stSidebarCollapseButton"] button::after,
+    button[aria-label="Close sidebar"]::after {
         content: "◀ 收起 🌸" !important;
         font-size: 0.88rem !important;
         font-weight: 800 !important;
         color: #ff6b81 !important;
         white-space: nowrap !important;
+        display: inline-block !important;
     }
-    div[data-testid="stSidebarCollapseButton"] button:hover {
+    [data-testid="stSidebarCollapseButton"] button:hover,
+    button[aria-label="Close sidebar"]:hover {
         background-color: #fff0f3 !important;
         border-color: #ffb7c5 !important;
         transform: scale(1.05) !important;
     }
 
-    /* 🌸 2. 收起時：貼左側牆邊的標籤狀 (Tag/Tab) */
+    /* 🌸 2. 側邊欄收起時：左側牆邊漸層標籤狀 (Tag/Tab) */
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="collapsedControl"],
     div[data-testid="stSidebarCollapsedControl"] {
+        position: fixed !important;
         top: 15px !important;
         left: 0px !important;
+        z-index: 999999 !important;
     }
-    div[data-testid="stSidebarCollapsedControl"] button {
+
+    [data-testid="stSidebarCollapsedControl"] button,
+    [data-testid="collapsedControl"] button,
+    button[aria-label="Open sidebar"],
+    button[aria-label="Expand sidebar"] {
         background: linear-gradient(135deg, #ffb7c5, #ffdac1) !important;
         border: none !important;
-        border-radius: 0 18px 18px 0 !important; /* 單邊圓角標籤造型 */
+        border-radius: 0 18px 18px 0 !important;
         padding: 8px 16px 8px 12px !important;
         box-shadow: 3px 3px 12px rgba(255, 183, 197, 0.45) !important;
         transition: all 0.25s ease-in-out !important;
         width: auto !important;
         height: auto !important;
+        min-height: auto !important;
+        font-size: 0 !important;
     }
-    div[data-testid="stSidebarCollapsedControl"] button svg {
+
+    /* 徹底藏掉原本所有的 >> 圖示及 SVG 元件 */
+    [data-testid="stSidebarCollapsedControl"] button *,
+    [data-testid="collapsedControl"] button *,
+    button[aria-label="Open sidebar"] *,
+    button[aria-label="Expand sidebar"] * {
         display: none !important;
     }
-    div[data-testid="stSidebarCollapsedControl"] button::after {
+
+    /* 替換為美麗的標籤文字 */
+    [data-testid="stSidebarCollapsedControl"] button::after,
+    [data-testid="collapsedControl"] button::after,
+    button[aria-label="Open sidebar"]::after,
+    button[aria-label="Expand sidebar"]::after {
         content: "🌸 帳號選單 ▶" !important;
         font-size: 0.9rem !important;
         font-weight: 800 !important;
         color: #ffffff !important;
         white-space: nowrap !important;
+        display: inline-block !important;
     }
-    div[data-testid="stSidebarCollapsedControl"] button:hover {
+
+    [data-testid="stSidebarCollapsedControl"] button:hover,
+    [data-testid="collapsedControl"] button:hover,
+    button[aria-label="Open sidebar"]:hover,
+    button[aria-label="Expand sidebar"]:hover {
         padding-left: 18px !important;
-        box-shadow: 5px 4px 15px rgba(255, 183, 197, 0.65) !important;
+        background: linear-gradient(135deg, #ff9ebb, #ffceb4) !important;
+        box-shadow: 5px 4px 16px rgba(255, 183, 197, 0.65) !important;
     }
     
     .cute-header {
