@@ -264,7 +264,7 @@ def fetch_rate_by_date(currency_label, target_date):
 
     return fallback
 
-# 3. 馬卡龍風格 CSS 樣式
+# 3. 全版面馬卡龍風格 CSS 裝飾與美化
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Sans+TC:wght@500;700;900&display=swap');
@@ -277,40 +277,70 @@ st.markdown("""
     
     .stMarkdown a, .cute-header a { display: none !important; }
 
-    /* 🌸 側邊欄「收起」按鈕字體與裝飾美化 */
-    [data-testid="stSidebarCollapseButton"] svg,
-    [data-testid="stSidebarHeader"] button svg {
+    /* 🌸 側邊欄「收起」按鈕精準美化（防止重複與圖示重疊） */
+    button[data-testid="stSidebarCollapseButton"] svg {
         display: none !important;
     }
-    [data-testid="stSidebarCollapseButton"],
-    [data-testid="stSidebarHeader"] button {
-        width: auto !important;
-        height: auto !important;
-        background: transparent !important;
-        border: none !important;
+    button[data-testid="stSidebarCollapseButton"] {
+        background: #ffffff !important;
+        border: 2px solid #ffd1dc !important;
+        border-radius: 16px !important;
+        padding: 4px 10px !important;
+        box-shadow: 0 4px 12px rgba(255, 183, 197, 0.35) !important;
+        transition: all 0.25s ease-in-out !important;
     }
-    [data-testid="stSidebarCollapseButton"]::after,
-    [data-testid="stSidebarHeader"] button::after {
+    button[data-testid="stSidebarCollapseButton"]::after {
         content: "◀ 收起 🌸";
         font-size: 0.85rem;
         font-weight: 800;
         color: #ff6b81;
-        background-color: #ffffff;
-        padding: 5px 12px;
-        border-radius: 14px;
-        border: 2px solid #ffd1dc;
-        box-shadow: 0 3px 10px rgba(255, 183, 197, 0.35);
         white-space: nowrap;
-        display: inline-block;
-        transition: all 0.2s ease;
     }
-    [data-testid="stSidebarCollapseButton"]:hover::after,
-    [data-testid="stSidebarHeader"] button:hover::after {
-        background-color: #fff0f3;
-        border-color: #ffb7c5;
+    button[data-testid="stSidebarCollapseButton"]:hover {
+        background-color: #fff0f3 !important;
+        border-color: #ffb7c5 !important;
         transform: scale(1.05);
     }
 
+    /* 🎨 輸入欄位裝飾美化 */
+    div[data-baseweb="input"], div[data-baseweb="select"] > div {
+        border-radius: 14px !important;
+        border: 2px solid #ffd1dc !important;
+        background-color: #ffffff !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    div[data-baseweb="input"]:focus-within, div[data-baseweb="select"] > div:focus-within {
+        border-color: #ff6b81 !important;
+        box-shadow: 0 0 0 3px rgba(255, 107, 129, 0.2) !important;
+    }
+
+    /* 🌸 分頁 Tabs 馬卡龍可愛按鈕化 */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+        background-color: #fff0f3;
+        padding: 8px;
+        border-radius: 20px;
+        border: 2px solid #ffd1dc;
+        margin-bottom: 1rem;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 45px;
+        border-radius: 14px;
+        background-color: transparent;
+        color: #7d5a60 !important;
+        font-weight: 700 !important;
+        border: none !important;
+        padding: 0px 22px !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #ffb7c5, #ffdac1) !important;
+        color: #ffffff !important;
+        font-weight: 800 !important;
+        box-shadow: 0 4px 12px rgba(255, 183, 197, 0.4) !important;
+    }
+
+    /* 💖 標題與 Header 美化 */
     .cute-header {
         background: linear-gradient(135deg, #ffb7c5, #ffe4e1);
         padding: 2.2rem 1.5rem;
@@ -320,7 +350,6 @@ st.markdown("""
         margin-bottom: 2rem;
         width: 100%;
     }
-    
     .cute-header h1 { 
         font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif;
         font-weight: 800;
@@ -333,7 +362,6 @@ st.markdown("""
         line-height: 1.3;
         text-align: center;
     }
-    
     .cute-header p { 
         font-family: 'M PLUS Rounded 1c', 'Noto Sans TC', sans-serif;
         color: #7d5a60; 
@@ -344,17 +372,32 @@ st.markdown("""
         text-align: center;
     }
 
+    /* 📊 統計卡片美化 */
+    .stat-card {
+        background-color: #ffffff;
+        border: 2px solid #ffd1dc;
+        border-radius: 22px;
+        padding: 1.3rem;
+        text-align: center;
+        box-shadow: 0 6px 18px rgba(255, 209, 220, 0.25);
+        margin-bottom: 1.5rem;
+        transition: transform 0.2s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+    }
+    .stat-label { font-size: 0.95rem; color: #8b7d83; font-weight: 700; }
+    .stat-value { font-size: 2.2rem; font-weight: 800; color: #ff6b81; margin-top: 0.3rem; }
+
     .popup-box {
         text-align: center;
         padding: 1.5rem 1rem;
     }
-    
     .popup-icon {
         font-size: 3.2rem;
         margin-bottom: 0.8rem;
         animation: pulse 1.2s infinite alternate;
     }
-
     @keyframes pulse {
         0% { transform: scale(1); }
         100% { transform: scale(1.15); }
@@ -363,13 +406,12 @@ st.markdown("""
     .sidebar-user-card {
         background-color: #ffffff;
         border: 2px solid #ffd1dc;
-        border-radius: 18px;
+        border-radius: 20px;
         padding: 1.2rem;
         text-align: center;
         box-shadow: 0 4px 12px rgba(255, 209, 220, 0.25);
         margin-bottom: 1.2rem;
     }
-    
     .avatar-circle-img {
         width: 75px;
         height: 75px;
@@ -380,7 +422,6 @@ st.markdown("""
         margin: 0 auto 0.6rem auto;
         display: block;
     }
-
     .avatar-circle-char {
         width: 75px;
         height: 75px;
@@ -394,7 +435,6 @@ st.markdown("""
         box-shadow: 0 4px 10px rgba(255, 183, 197, 0.4);
         margin: 0 auto 0.6rem auto;
     }
-
     .sidebar-user-card h3 {
         color: #ff6b81;
         font-size: 1.3rem;
@@ -402,18 +442,6 @@ st.markdown("""
         font-weight: 800;
     }
 
-    .stat-card {
-        background-color: #ffffff;
-        border: 2px solid #ffd1dc;
-        border-radius: 20px;
-        padding: 1.2rem;
-        text-align: center;
-        box-shadow: 0 4px 15px rgba(255, 209, 220, 0.2);
-        margin-bottom: 1.5rem;
-    }
-    .stat-label { font-size: 0.95rem; color: #8b7d83; font-weight: 700; }
-    .stat-value { font-size: 2.1rem; font-weight: 800; color: #ff6b81; margin-top: 0.3rem; }
-    
     .amount-right-align {
         text-align: right !important;
         font-weight: 700;
